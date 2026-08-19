@@ -25,36 +25,25 @@ import (
 
 	"github.com/FelixJI/iKuai-Toolbox/internal/config"
 	"github.com/FelixJI/iKuai-Toolbox/internal/ikuai"
+	ikuailogger "github.com/FelixJI/iKuai-Toolbox/internal/logger"
 	"github.com/FelixJI/iKuai-Toolbox/internal/netx"
 )
 
-// LogLevel 日志级别，值与 JSON 标签对齐 crates/core/src/logger.rs L8-14。
-// 本任务先在包内定义最小形状，Task 6 的 logger 复用同一形状。
-// LogLevel mirrors crates/core/src/logger.rs L8-14; this task defines the
-// minimal shape in-package and Task 6's logger reuses it.
-type LogLevel string
+// LogLevel / LogRecord / LogSink 规范定义位于 internal/logger（Task 6 归一），
+// 此处以类型别名转发，调用方零改动；JSON 标签仍与 logger.rs L8-23 一致。
+// The canonical LogLevel / LogRecord / LogSink live in internal/logger
+// (normalized in Task 6); these aliases forward them so callers stay untouched,
+// with JSON tags still matching logger.rs L8-23.
+type LogLevel = ikuailogger.LogLevel
+type LogRecord = ikuailogger.LogRecord
+type LogSink = ikuailogger.LogSink
 
 const (
-	LevelInfo    LogLevel = "Info"
-	LevelSuccess LogLevel = "Success"
-	LevelWarn    LogLevel = "Warn"
-	LevelError   LogLevel = "Error"
+	LevelInfo    = ikuailogger.LevelInfo
+	LevelSuccess = ikuailogger.LevelSuccess
+	LevelWarn    = ikuailogger.LevelWarn
+	LevelError   = ikuailogger.LevelError
 )
-
-// LogRecord 五字段日志记录（ts/module/tag/level/detail），对齐 logger.rs L16-23。
-// LogRecord is the five-field log record (ts/module/tag/level/detail), mirroring logger.rs L16-23.
-type LogRecord struct {
-	Ts     string   `json:"ts"`
-	Module string   `json:"module"`
-	Tag    string   `json:"tag"`
-	Level  LogLevel `json:"level"`
-	Detail string   `json:"detail"`
-}
-
-// LogSink 日志接收函数；必须非 nil（对齐 Rust Arc<dyn Fn(LogRecord)> 的必传约定）。
-// LogSink receives every log record; it must be non-nil (matching the mandatory
-// Arc<dyn Fn(LogRecord)> convention of the Rust version).
-type LogSink func(rec LogRecord)
 
 // UpdateOptions 更新选项，对齐 update.rs L10-19。
 // UpdateOptions mirrors update.rs L10-19.
@@ -115,8 +104,11 @@ func downloadErr(msg string) *UpdateError {
 	return &UpdateError{Kind: ErrKindDownload, Msg: msg}
 }
 
-// logger 模块级日志器，对齐 logger.rs L27-66 的 Logger（module + sink）。
-// logger is the per-module logger mirroring Logger of logger.rs L27-66 (module + sink).
+// logger 包内小写方法适配器：类型与语义均来自 internal/logger 的规范定义，
+// 仅保留小写方法名以避免改动本包既有调用点。
+// logger is a lowercase-method adapter over the canonical shapes of
+// internal/logger; only the method casing is local, kept so existing
+// call sites inside this package stay untouched.
 type logger struct {
 	module string
 	sink   LogSink
