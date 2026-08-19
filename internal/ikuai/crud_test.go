@@ -907,3 +907,57 @@ func TestStreamIpPortSpec(t *testing.T) {
 		t.Errorf("remaining rows = %v, want only unmanaged id 62", remain)
 	}
 }
+
+// TestIsManaged 反向用例来自 types.rs L6-17 标记清单与 clean.rs L42-47：
+// `joyanhui/ikuai-bypass-2` 这类存量备注必须命中受管，否则清理会漏删。
+// TestIsManaged reverse cases come from the marker list of types.rs L6-17 and
+// clean.rs L42-47: legacy comments like `joyanhui/ikuai-bypass-2` must be
+// recognized as managed, otherwise cleanup would miss them.
+func TestIsManaged(t *testing.T) {
+	cases := []struct {
+		comment, name string
+		want          bool
+	}{
+		{"IkuaiBypass", "", true},
+		{"joyanhui/ikuai-bypass-2", "", true},
+		{"IKUAI_BYPASS_demo", "", true},
+		{"别家的备注", "", false},
+		{"", "IKBdemo1", true},
+		{"别家的备注", "IKBdemo1", true},
+		{"别家的备注", "user-rule", false},
+	}
+	for _, tc := range cases {
+		if got := IsManaged(tc.comment, tc.name); got != tc.want {
+			t.Errorf("IsManaged(%q, %q) = %v, want %v", tc.comment, tc.name, got, tc.want)
+		}
+	}
+}
+
+// TestMatchCleanTag 对齐 clean.rs L13-35/L49-52：空 tag 与非受管恒不删，
+// cleanAll 删全部受管，否则按等于/包含匹配 legacy 备注或 current 名字。
+// TestMatchCleanTag mirrors clean.rs L13-35/L49-52: an empty tag or an unmanaged
+// rule never deletes; cleanAll deletes every managed rule; otherwise the legacy
+// comment or current name must equal or contain the tag.
+func TestMatchCleanTag(t *testing.T) {
+	cases := []struct {
+		cleanTag, legacy, current string
+		want                      bool
+	}{
+		{"", "IkuaiBypass", "IKBdemo1", false},
+		{"demo", "joyanhui/ikuai-bypass-demo", "", true},
+		{"demo", "别家的备注", "我的规则", false},
+		{"cleanAll", "joyanhui/ikuai-bypass-2", "", true},
+		{"cleanAll", "别家的备注", "我的规则", false},
+		{"demo", "IkuaiBypass", "IKBdemo1", true},
+		{"demo", "IkuaiBypass", "other-managed-by-comment", false},
+		{" demo ", "IkuaiBypass-2", "IKBdemo2", true},
+		{"joyanhui/ikuai-bypass", "joyanhui/ikuai-bypass", "user-rule", true},
+		{"IKBdemo1", "", "IKBdemo1", true},
+	}
+	for _, tc := range cases {
+		if got := MatchCleanTag(tc.cleanTag, tc.legacy, tc.current); got != tc.want {
+			t.Errorf("MatchCleanTag(%q, %q, %q) = %v, want %v",
+				tc.cleanTag, tc.legacy, tc.current, got, tc.want)
+		}
+	}
+}
