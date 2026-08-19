@@ -305,6 +305,26 @@ func sortedByID[T any](rows []T, id func(T) int64) []T {
 	return rows
 }
 
+// idsOf 提取各行 id（对齐 Rust 的 rows.iter().map(|item| item.id)）。
+// idsOf extracts the id of every row (the Rust rows.iter().map(|i| i.id)).
+func idsOf[T any](rows []T, id func(T) int64) []int64 {
+	out := make([]int64, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, id(r))
+	}
+	return out
+}
+
+// mapRows 逐行映射（对齐 Rust 的 iter().map().collect::<Vec<_>>()）。
+// mapRows maps every row (the Rust iter().map().collect::<Vec<_>>())).
+func mapRows[T any, R any](rows []T, fn func(T) R) []R {
+	out := make([]R, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, fn(r))
+	}
+	return out
+}
+
 func showCustomIsp(t *testing.T, api *ikuai.IKuaiClient, tag string) []ikuai.CustomIspData {
 	t.Helper()
 	rows, err := ikuai.ShowCustomIspByTagName(api, tag)
