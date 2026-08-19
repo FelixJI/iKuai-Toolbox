@@ -95,9 +95,11 @@ type cliArgs struct {
 	isIpGroupRand string
 }
 
-// parseArgs 解析归一化后的 argv（不含 argv[0]），解析失败由 flag 包打印错误。
-// parseArgs parses the normalized argv (without argv[0]); parse failures are
-// printed by the flag package itself.
+// parseArgs 解析归一化后的 argv（不含 argv[0]）；flag 解析失败由 flag 包打印，
+// 多余位置参数对齐 clap 的 unexpected argument（exit 2）显式拒绝。
+// parseArgs parses the normalized argv (without argv[0]); flag parse failures
+// are printed by the flag package itself, and surplus positional arguments are
+// rejected explicitly per clap's unexpected-argument behavior (exit 2).
 func parseArgs(argv []string, errOut io.Writer) (cliArgs, error) {
 	var a cliArgs
 	fs := flag.NewFlagSet("ikuai-bypass", flag.ContinueOnError)
@@ -111,6 +113,17 @@ func parseArgs(argv []string, errOut io.Writer) (cliArgs, error) {
 	fs.StringVar(&a.isIpGroupRand, "isIpGroupNameAddRandomSuff", "1", "random suffix for ip group names")
 	if err := fs.Parse(argv); err != nil {
 		return a, err
+	}
+	// Go flag 在首个非 flag token 处停止解析（其后的 flag 一并落入位置参数）；
+	// clap 会报 unexpected argument 并 exit 2。显式拒绝，防止漏写 -r 的输入
+	// 静默落入默认 cronAft 与默认配置路径。
+	// Go's flag stops at the first non-flag token (any flags after it become
+	// positionals too); clap reports unexpected argument and exits 2. Reject
+	// explicitly so a missing -r never silently falls back to the default
+	// cronAft mode and default config path.
+	if fs.NArg() > 0 {
+		fmt.Fprintf(errOut, "[ERR:参数错误] unexpected argument: %s\n", fs.Arg(0))
+		return a, fmt.Errorf("unexpected argument: %s", fs.Arg(0))
 	}
 	set := map[string]bool{}
 	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })

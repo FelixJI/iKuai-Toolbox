@@ -777,6 +777,10 @@ func TestParseArgsSetTracking(t *testing.T) {
 	if _, err = parseArgs([]string{"-nope"}, io.Discard); err == nil {
 		t.Fatal("unknown flag should fail")
 	}
+
+	if _, err = parseArgs([]string{"-r", "once", "extra"}, io.Discard); err == nil {
+		t.Fatal("positional argument should fail")
+	}
 }
 
 func TestEnsureConfigExistsOrPromptCreate(t *testing.T) {
@@ -885,6 +889,21 @@ func TestCliMainValidation(t *testing.T) {
 		if code != 2 {
 			t.Fatalf("code = %d, want 2", code)
 		}
+	})
+
+	// 漏写 -r 的位置参数会连带吞掉其后的 flag，不修复将静默落入默认
+	// cronAft 与默认配置路径；必须对齐 clap 的 unexpected argument exit 2。
+	// A positional from a missing -r swallows the flags after it too; without
+	// the fix it silently falls back to the default cronAft mode and config
+	// path, so clap's unexpected-argument exit 2 must be mirrored.
+	t.Run("positional argument before flags exits 2", func(t *testing.T) {
+		errOut := bytes.NewBuffer(nil)
+		code := cliMain([]string{"ikuai-bypass", "once", "-r", "once", "-c", cfgPath},
+			strings.NewReader(""), false, io.Discard, errOut)
+		if code != 2 {
+			t.Fatalf("code = %d, want 2", code)
+		}
+		assertContains(t, errOut.String(), "[ERR:参数错误] unexpected argument: once")
 	})
 }
 
