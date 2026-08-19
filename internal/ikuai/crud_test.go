@@ -572,3 +572,338 @@ func TestRouteObjectClean(t *testing.T) {
 		t.Errorf("remaining rows = %d, want 4 (trunk/home/IKBhome/user-group kept)", len(remain))
 	}
 }
+
+// streamDomainRows 域名分流种子：51/55 同名验证 insert 后见覆盖、54 无尾缀不可解析、
+// 52 非受管被过滤。
+// Stream-domain seeds: 51/55 share a tagname (insert keeps the last), 54 lacks a
+// numeric suffix (unparsable), 52 is unmanaged and filtered out.
+func streamDomainRows() []map[string]any {
+	weekly := func() map[string]any {
+		return map[string]any{"custom": []any{map[string]any{"type": "weekly", "weekdays": "1234567",
+			"start_time": "00:00", "end_time": "23:59", "comment": ""}}, "object": []any{}}
+	}
+	return []map[string]any{
+		{"id": 51, "enabled": "yes", "tagname": "IKBdemo1", "interface": "wan1", "comment": "IkuaiBypass",
+			"src_addr": map[string]any{"custom": []any{"192.168.1.0/24"}, "object": []any{map[string]any{"type": 0, "gid": "IPGP41", "gp_name": "IKBhome1"}}},
+			"domain":   map[string]any{"custom": []any{"a.com", "b.com"}, "object": []any{}},
+			"time":     weekly(),
+			"prio":     31},
+		{"id": 52, "enabled": "yes", "tagname": "other-rule", "interface": "wan1", "comment": "",
+			"src_addr": map[string]any{"custom": []any{}, "object": []any{}},
+			"domain":   map[string]any{"custom": []any{"x.com"}, "object": []any{}},
+			"time":     weekly()},
+		{"id": 54, "enabled": "yes", "tagname": "IKBdemo", "interface": "wan1", "comment": "",
+			"src_addr": map[string]any{"custom": []any{}, "object": []any{}},
+			"domain":   map[string]any{"custom": []any{}, "object": []any{}},
+			"time":     weekly()},
+		{"id": 55, "enabled": "yes", "tagname": "IKBdemo1", "interface": "wan2", "comment": "IkuaiBypass-2",
+			"src_addr": map[string]any{"custom": []any{}, "object": []any{}},
+			"domain":   map[string]any{"custom": []any{}, "object": []any{}},
+			"time":     weekly()},
+	}
+}
+
+// TestStreamDomainSpec 覆盖 stream_domain.rs：固定字段请求体（enabled/prio 31/周 1234567
+// 全天/comment=NewComment）、resolve_src_addrs 的 custom/object 分离与 IPGP<id> 对象结构、
+// 分组引用精确名优先、无匹配报错、show 展平与 time 还原、GetMap 后见覆盖、清理循环。
+// TestStreamDomainSpec covers stream_domain.rs: the fixed request fields
+// (enabled/prio 31/weekly 1234567 all-day/comment=NewComment), resolve_src_addrs
+// custom/object separation with the IPGP<id> object shape, exact-first group
+// references, the no-match error, show flattening with time restore, the
+// last-wins GetMap and the clean loop.
+func TestStreamDomainSpec(t *testing.T) {
+	f := newFakeIkuai(t, map[string][]map[string]any{
+		FUNC_NAME_ROUTE_OBJECT: {
+			{"id": 41, "group_name": "IKBhome1", "type": 0, "comment": "",
+				"group_value": []any{map[string]any{"ip": "10.0.0.0/8", "comment": ""}}},
+			{"id": 23, "group_name": "home", "type": 0, "comment": "",
+				"group_value": []any{map[string]any{"ip": "192.168.0.0/16", "comment": ""}}},
+		},
+		FUNC_NAME_STREAM_DOMAIN: streamDomainRows(),
+	})
+	api := f.client()
+
+	spec := StreamDomainSpec{
+		Iface: "wan1", Tag: "demo", Index: 1,
+		SrcAddr: "192.168.1.0/24, IKBhome1",
+		Domains: " example.com, ,baidu.com ",
+	}
+	if err := AddStreamDomain(api, spec); err != nil {
+		t.Fatalf("AddStreamDomain: %v", err)
+	}
+	call := f.lastCall()
+	if call.FuncName != FUNC_NAME_STREAM_DOMAIN || call.Action != "add" {
+		t.Fatalf("call = %s/%s, want stream_domain/add", call.FuncName, call.Action)
+	}
+	if len(call.Param) != 8 {
+		t.Fatalf("add param keys = %v, want exactly 8 fixed fields", call.Param)
+	}
+	if call.Param["enabled"] != "yes" || call.Param["prio"] != float64(31) || call.Param["comment"] != "IkuaiBypass" {
+		t.Errorf("enabled/prio/comment = %v/%v/%v", call.Param["enabled"], call.Param["prio"], call.Param["comment"])
+	}
+	if call.Param["tagname"] != "IKBdemo2" || call.Param["interface"] != "wan1" {
+		t.Errorf("tagname/interface = %v/%v, want IKBdemo2/wan1", call.Param["tagname"], call.Param["interface"])
+	}
+	srcAddr, _ := call.Param["src_addr"].(map[string]any)
+	srcCustom, _ := srcAddr["custom"].([]any)
+	srcObjects, _ := srcAddr["object"].([]any)
+	if len(srcCustom) != 1 || srcCustom[0] != "192.168.1.0/24" {
+		t.Errorf("src custom = %v, want [192.168.1.0/24]", srcCustom)
+	}
+	if len(srcObjects) != 1 || srcObjects[0].(map[string]any)["gid"] != "IPGP41" ||
+		srcObjects[0].(map[string]any)["gp_name"] != "IKBhome1" ||
+		srcObjects[0].(map[string]any)["type"] != float64(0) {
+		t.Errorf("src objects = %v, want [{type:0,gid:IPGP41,gp_name:IKBhome1}]", srcObjects)
+	}
+	domain, _ := call.Param["domain"].(map[string]any)
+	if dCustom, _ := domain["custom"].([]any); len(dCustom) != 2 || dCustom[0] != "example.com" || dCustom[1] != "baidu.com" {
+		t.Errorf("domain custom = %v, want [example.com baidu.com]", dCustom)
+	}
+	if dObj, _ := domain["object"].([]any); len(dObj) != 0 {
+		t.Errorf("domain object = %v, want empty", dObj)
+	}
+	timeBlock, _ := call.Param["time"].(map[string]any)
+	timeCustom, _ := timeBlock["custom"].([]any)
+	if len(timeCustom) != 1 {
+		t.Fatalf("time.custom = %v, want one weekly entry", timeBlock["custom"])
+	}
+	weekly, _ := timeCustom[0].(map[string]any)
+	if weekly["type"] != "weekly" || weekly["weekdays"] != "1234567" ||
+		weekly["start_time"] != "00:00" || weekly["end_time"] != "23:59" || weekly["comment"] != "" {
+		t.Errorf("time.custom[0] = %v", weekly)
+	}
+
+	optSpec := StreamDomainSpec{Iface: "wan2", Tag: "demo", Index: 0, SrcAddrOptIpgroup: "home", Domains: "a.com"}
+	if err := AddStreamDomain(api, optSpec); err != nil {
+		t.Fatalf("AddStreamDomain(opt ipgroup): %v", err)
+	}
+	call = f.lastCall()
+	srcAddr, _ = call.Param["src_addr"].(map[string]any)
+	if srcCustom, _ = srcAddr["custom"].([]any); len(srcCustom) != 0 {
+		t.Errorf("opt-path custom = %v, want empty", srcCustom)
+	}
+	if srcObjects, _ = srcAddr["object"].([]any); len(srcObjects) != 1 ||
+		srcObjects[0].(map[string]any)["gid"] != "IPGP23" || srcObjects[0].(map[string]any)["gp_name"] != "home" {
+		t.Errorf("opt-path objects = %v, want [{gid:IPGP23,gp_name:home}] (exact name first)", srcObjects)
+	}
+
+	err := AddStreamDomain(api, StreamDomainSpec{Iface: "wan1", Tag: "demo", SrcAddrOptIpgroup: "nope", Domains: "a.com"})
+	if err == nil || !strings.Contains(err.Error(), "no matching source IP groups found for stream-domain reference: nope") {
+		t.Fatalf("unresolved opt ipgroup error = %v", err)
+	}
+
+	editSpec := StreamDomainSpec{Iface: "wan1", Tag: "demo", Index: 0, SrcAddr: "192.168.1.0/24", Domains: "a.com"}
+	if err := EditStreamDomain(api, editSpec, 51); err != nil {
+		t.Fatalf("EditStreamDomain: %v", err)
+	}
+	if got := f.lastCall().Param["id"]; got != float64(51) {
+		t.Errorf("edit id = %v, want 51", got)
+	}
+
+	rows, err := ShowStreamDomainByTagName(api, "demo")
+	if err != nil {
+		t.Fatalf("ShowStreamDomainByTagName: %v", err)
+	}
+	if len(rows) != 3 {
+		t.Fatalf("show rows = %d, want 3 (51/54/55 managed)", len(rows))
+	}
+	first := rows[0]
+	if first.ID != 51 || first.Enabled != "yes" || first.Interface != "wan1" || first.Comment != "IkuaiBypass" {
+		t.Errorf("row 51 = %+v", first)
+	}
+	if first.SrcAddr != "192.168.1.0/24,IKBhome1" {
+		t.Errorf("row 51 src = %q, want custom,then-object join", first.SrcAddr)
+	}
+	if first.Domain != "a.com,b.com" || first.Week != "1234567" || first.Time != "00:00-23:59" {
+		t.Errorf("row 51 domain/week/time = %q/%q/%q", first.Domain, first.Week, first.Time)
+	}
+	if len(f.lastCall().Param) != 2 || f.lastCall().Param["TYPE"] != "total,data" || f.lastCall().Param["limit"] != "0,1000" {
+		t.Errorf("show param = %v, want TYPE/limit only", f.lastCall().Param)
+	}
+
+	domainMap, err := GetStreamDomainMap(api, "demo")
+	if err != nil {
+		t.Fatalf("GetStreamDomainMap: %v", err)
+	}
+	if len(domainMap) != 1 || domainMap[1] != 55 {
+		t.Errorf("GetStreamDomainMap = %v, want {1:55} (insert keeps the last row)", domainMap)
+	}
+
+	if err := DelStreamDomain(api, "51,52"); err != nil {
+		t.Fatalf("DelStreamDomain: %v", err)
+	}
+	if got := f.lastCall().Param["id"]; got != "51,52" {
+		t.Errorf("del id = %v, want 51,52", got)
+	}
+
+	if err := DelStreamDomainAll(api, "demo"); err != nil {
+		t.Fatalf("DelStreamDomainAll: %v", err)
+	}
+	dels := f.callsFor(FUNC_NAME_STREAM_DOMAIN, "del")
+	if len(dels) != 2 || dels[1].Param["id"] != "54,55" {
+		t.Fatalf("DelStreamDomainAll del calls = %+v, want second batch 54,55", dels)
+	}
+	if remain := f.rowsOf(FUNC_NAME_STREAM_DOMAIN); len(remain) != 0 {
+		t.Errorf("remaining rows = %v, want empty after 51/52 manual + 54/55 batch", remain)
+	}
+}
+
+// TestStreamIpPortSpec 覆盖 stream_ipport.rs：默认 protocol tcp+udp、area_code/dst_type 空、
+// tagname 非分片、forward_type 解析失败回退 0、src/dst custom+object 分离、show 展平。
+// TestStreamIpPortSpec covers stream_ipport.rs: the tcp+udp default protocol,
+// empty area_code/dst_type, the non-indexed tagname, forward_type parse fallback
+// to 0, src/dst custom+object separation and show flattening.
+func TestStreamIpPortSpec(t *testing.T) {
+	f := newFakeIkuai(t, map[string][]map[string]any{
+		FUNC_NAME_ROUTE_OBJECT: {
+			{"id": 41, "group_name": "IKBhome1", "type": 0, "comment": "",
+				"group_value": []any{map[string]any{"ip": "10.0.0.0/8", "comment": ""}}},
+		},
+		FUNC_NAME_STREAM_IPPORT: {
+			{"id": 61, "enabled": "yes", "tagname": "IKBdemo1", "interface": "wan1", "nexthop": "10.0.0.1",
+				"comment": "IkuaiBypass", "iface_band": 2, "mode": 1, "protocol": "tcp+udp", "type": 1,
+				"src_addr":     map[string]any{"custom": []any{"192.168.1.0/24"}, "object": []any{}},
+				"dst_addr":     map[string]any{"custom": []any{"8.8.8.8"}, "object": []any{map[string]any{"type": 0, "gid": "IPGP41", "gp_name": "IKBhome1"}}},
+				"src_addr_inv": 1, "dst_addr_inv": 0,
+				"time": map[string]any{"custom": []any{map[string]any{"type": "weekly", "weekdays": "1234567",
+					"start_time": "08:00", "end_time": "22:00", "comment": ""}}, "object": []any{}}},
+			{"id": 62, "enabled": "yes", "tagname": "other", "interface": "wan1", "nexthop": "",
+				"comment": "", "iface_band": 0, "mode": 0, "protocol": "tcp", "type": 0,
+				"src_addr": map[string]any{"custom": []any{}, "object": []any{}},
+				"dst_addr": map[string]any{"custom": []any{}, "object": []any{}},
+				"time":     map[string]any{"custom": []any{}, "object": []any{}}},
+		},
+	})
+	api := f.client()
+
+	spec := StreamIpPortSpec{
+		ForwardType: "1", Iface: "wan1", DstAddr: "8.8.8.8", SrcAddr: "192.168.1.0/24, IKBhome1",
+		SrcAddrInv: 1, Nexthop: "10.0.0.1", Tag: "demo", DstAddrInv: 0,
+		Prio: 5, Mode: 1, IfaceBand: 0, Protocol: "",
+	}
+	if err := AddStreamIpPort(api, spec); err != nil {
+		t.Fatalf("AddStreamIpPort: %v", err)
+	}
+	call := f.lastCall()
+	if call.FuncName != FUNC_NAME_STREAM_IPPORT || call.Action != "add" {
+		t.Fatalf("call = %s/%s, want stream_ipport/add", call.FuncName, call.Action)
+	}
+	if len(call.Param) != 19 {
+		t.Fatalf("add param keys = %d (%v), want exactly 19 fixed fields", len(call.Param), call.Param)
+	}
+	if call.Param["protocol"] != "tcp+udp" {
+		t.Errorf("default protocol = %v, want tcp+udp", call.Param["protocol"])
+	}
+	if call.Param["area_code"] != "" || call.Param["dst_type"] != "" {
+		t.Errorf("area_code/dst_type = %v/%v, want empty", call.Param["area_code"], call.Param["dst_type"])
+	}
+	if call.Param["tagname"] != "IKBdemo" {
+		t.Errorf("tagname = %v, want IKBdemo (non-indexed)", call.Param["tagname"])
+	}
+	if call.Param["type"] != float64(1) || call.Param["mode"] != float64(1) || call.Param["prio"] != float64(5) {
+		t.Errorf("type/mode/prio = %v/%v/%v", call.Param["type"], call.Param["mode"], call.Param["prio"])
+	}
+	if call.Param["src_addr_inv"] != float64(1) || call.Param["dst_addr_inv"] != float64(0) {
+		t.Errorf("src/dst inv = %v/%v", call.Param["src_addr_inv"], call.Param["dst_addr_inv"])
+	}
+	srcAddr, _ := call.Param["src_addr"].(map[string]any)
+	if custom, _ := srcAddr["custom"].([]any); len(custom) != 1 || custom[0] != "192.168.1.0/24" {
+		t.Errorf("src custom = %v", custom)
+	}
+	if objects, _ := srcAddr["object"].([]any); len(objects) != 1 || objects[0].(map[string]any)["gid"] != "IPGP41" {
+		t.Errorf("src objects = %v, want [IPGP41 ref]", objects)
+	}
+	dstAddr, _ := call.Param["dst_addr"].(map[string]any)
+	if custom, _ := dstAddr["custom"].([]any); len(custom) != 1 || custom[0] != "8.8.8.8" {
+		t.Errorf("dst custom = %v", custom)
+	}
+	if objects, _ := dstAddr["object"].([]any); len(objects) != 0 {
+		t.Errorf("dst objects = %v, want empty", objects)
+	}
+	for _, key := range []string{"src_port", "dst_port"} {
+		block, _ := call.Param[key].(map[string]any)
+		if len(block) != 2 || len(block["custom"].([]any)) != 0 || len(block["object"].([]any)) != 0 {
+			t.Errorf("%s = %v, want empty custom+object", key, block)
+		}
+	}
+
+	explicit := spec
+	explicit.Protocol = "tcp"
+	explicit.ForwardType = "abc"
+	if err := AddStreamIpPort(api, explicit); err != nil {
+		t.Fatalf("AddStreamIpPort(explicit): %v", err)
+	}
+	call = f.lastCall()
+	if call.Param["protocol"] != "tcp" {
+		t.Errorf("explicit protocol = %v, want tcp", call.Param["protocol"])
+	}
+	if call.Param["type"] != float64(0) {
+		t.Errorf("unparsable forward_type = %v, want 0", call.Param["type"])
+	}
+
+	if err := EditStreamIpPort(api, spec, 61); err != nil {
+		t.Fatalf("EditStreamIpPort: %v", err)
+	}
+	if got := f.lastCall().Param["id"]; got != float64(61) {
+		t.Errorf("edit id = %v, want 61", got)
+	}
+
+	if err := DelStreamIpPort(api, "61"); err != nil {
+		t.Fatalf("DelStreamIpPort: %v", err)
+	}
+
+	f2 := newFakeIkuai(t, map[string][]map[string]any{
+		FUNC_NAME_STREAM_IPPORT: {
+			{"id": 61, "enabled": "yes", "tagname": "IKBdemo1", "interface": "wan1", "nexthop": "10.0.0.1",
+				"comment": "IkuaiBypass", "iface_band": 2, "mode": 1, "protocol": "tcp+udp", "type": 1,
+				"src_addr":     map[string]any{"custom": []any{"192.168.1.0/24"}, "object": []any{}},
+				"dst_addr":     map[string]any{"custom": []any{"8.8.8.8"}, "object": []any{map[string]any{"type": 0, "gid": "IPGP41", "gp_name": "IKBhome1"}}},
+				"src_addr_inv": 1, "dst_addr_inv": 0,
+				"time": map[string]any{"custom": []any{map[string]any{"type": "weekly", "weekdays": "1234567",
+					"start_time": "08:00", "end_time": "22:00", "comment": ""}}, "object": []any{}}},
+			{"id": 62, "enabled": "yes", "tagname": "other", "interface": "wan1", "nexthop": "",
+				"comment": "", "iface_band": 0, "mode": 0, "protocol": "tcp", "type": 0,
+				"src_addr": map[string]any{"custom": []any{}, "object": []any{}},
+				"dst_addr": map[string]any{"custom": []any{}, "object": []any{}},
+				"time":     map[string]any{"custom": []any{}, "object": []any{}}},
+		},
+	})
+	api2 := f2.client()
+	rows, err := ShowStreamIpPortByTagName(api2, "demo")
+	if err != nil {
+		t.Fatalf("ShowStreamIpPortByTagName: %v", err)
+	}
+	if len(rows) != 1 || rows[0].ID != 61 {
+		t.Fatalf("show rows = %+v, want single id 61", rows)
+	}
+	got := rows[0]
+	if got.Protocol != "tcp+udp" || got.Nexthop != "10.0.0.1" || got.IfaceBand != 2 ||
+		got.Mode != 1 || got.Type != 1 || got.SrcAddrInv != 1 || got.DstAddrInv != 0 {
+		t.Errorf("row scalars = %+v", got)
+	}
+	if got.SrcAddr != "192.168.1.0/24" || got.DstAddr != "8.8.8.8,IKBhome1" {
+		t.Errorf("row addrs = %q/%q", got.SrcAddr, got.DstAddr)
+	}
+	if got.Week != "1234567" || got.Time != "08:00-22:00" {
+		t.Errorf("row week/time = %q/%q", got.Week, got.Time)
+	}
+
+	ipportMap, err := GetStreamIpPortMap(api2, "demo")
+	if err != nil {
+		t.Fatalf("GetStreamIpPortMap: %v", err)
+	}
+	if len(ipportMap) != 1 || ipportMap["IKBdemo1"] != 61 {
+		t.Errorf("GetStreamIpPortMap = %v, want {IKBdemo1:61}", ipportMap)
+	}
+
+	if err := DelIkuaiBypassStreamIpPort(api2, "demo"); err != nil {
+		t.Fatalf("DelIkuaiBypassStreamIpPort: %v", err)
+	}
+	dels := f2.callsFor(FUNC_NAME_STREAM_IPPORT, "del")
+	if len(dels) != 1 || dels[0].Param["id"] != "61" {
+		t.Fatalf("del calls = %+v, want single batch id 61", dels)
+	}
+	if remain := f2.rowsOf(FUNC_NAME_STREAM_IPPORT); len(remain) != 1 || remain[0]["id"] != 62 {
+		t.Errorf("remaining rows = %v, want only unmanaged id 62", remain)
+	}
+}
