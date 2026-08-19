@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -1073,5 +1074,132 @@ func TestInvalidModule(t *testing.T) {
 	}
 	if vErr := ValidateModule("bogus"); vErr == nil || vErr.Kind != ErrKindInvalidModule {
 		t.Fatalf("ValidateModule(bogus) = %v, want invalid_module", vErr)
+	}
+}
+
+// TestSessionPriority 登录参数三级优先级（session.rs L30-78）：CLI
+// `url,user,pass` > 配置 ikuai-url/username/password > router.go 网关猜测。
+// TestSessionPriority covers the three-tier login resolution (session.rs
+// L30-78): CLI `url,user,pass` > config ikuai-url/username/password > the
+// gateway guess from router.go.
+func TestSessionPriority(t *testing.T) {
+	cfgWithUrl := &config.Config{IkuaiURL: " http://cfg:80/ ", Username: "cfguser", Password: "cfgpass"}
+
+	// CLI 优先于配置，各段 trim。
+	// CLI wins over the config, each segment trimmed.
+	base, user, pass, err := ParseLoginParams(" http://cli:80 , admin , secret ", cfgWithUrl)
+	if err != nil || base != "http://cli:80" || user != "admin" || pass != "secret" {
+		t.Fatalf("CLI precedence => (%q,%q,%q,%v), want trimmed CLI triple", base, user, pass, err)
+	}
+
+	// CLI 畸形：两段 / 四段 / 空段均报 command line parameter format error。
+	// Malformed CLI input: two / four segments or a blank one all yield the format error.
+	for _, bad := range []string{"http://cli:80,admin", "http://cli:80,admin,secret,extra", "http://cli:80,,secret"} {
+		if _, _, _, err := ParseLoginParams(bad, cfgWithUrl); err == nil ||
+			err.Kind != ErrKindLoginParams || err.Msg != "command line parameter format error" {
+			t.Fatalf("ParseLoginParams(%q) = %v, want login_params format error", bad, err)
+		}
+	}
+
+	// CLI 缺失回退配置：baseURL trim，用户名密码原样。
+	// With no CLI input the config wins: the base URL is trimmed while the
+	// credentials are taken verbatim.
+	base, user, pass, err = ParseLoginParams("", cfgWithUrl)
+	if err != nil || base != "http://cfg:80/" || user != "cfguser" || pass != "cfgpass" {
+		t.Fatalf("config fallback => (%q,%q,%q,%v)", base, user, pass, err)
+	}
+	base, user, pass, err = ParseLoginParams("   ", cfgWithUrl)
+	if err != nil || base != "http://cfg:80/" {
+		t.Fatalf("blank CLI treated as missing => (%q,%v)", base, err)
+	}
+
+	// 两者皆缺 => 网关猜测；非 Linux 必失败，Linux 上若成功须形如 http://<ip>。
+	// Neither present => gateway guess; non-Linux always fails, while on Linux a
+	// success must look like http://<ip>.
+	base, user, pass, err = ParseLoginParams("", &config.Config{Username: "u1", Password: "p1"})
+	if err != nil {
+		if err.Kind != ErrKindLoginParams || err.Msg != "default gateway not found" {
+			t.Fatalf("gateway fallback error = %v, want default gateway not found", err)
+		}
+	} else if !strings.HasPrefix(base, "http://") || user != "u1" || pass != "p1" {
+		t.Fatalf("gateway fallback => (%q,%q,%q), want http://<ip> with config credentials", base, user, pass)
+	}
+}
+
+// TestParseProcNetRoute /proc/net/route 网关解析（router.rs L29-62）：
+// dest=00000000 且 flags 含 0x2 的行，第三列小端 hex 网关。
+// TestParseProcNetRoute covers the /proc/net/route parsing (router.rs L29-62):
+// rows with dest=00000000 and the 0x2 flag yield the little-endian hex gateway.
+func TestParseProcNetRoute(t *testing.T) {
+	content := "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\n" +
+		"eth1\t00000000\t01010101\t0001\t0\t0\t0\t00000000\t0\t0\t0\n" +
+		"eth0\t00000000\t0200A8C0\t0003\t0\t0\t0\t00000000\t0\t0\t0\n"
+	if ip, ok := parseProcNetRouteGateway(content); !ok || ip != "192.168.0.2" {
+		t.Fatalf("parseProcNetRouteGateway = (%q,%v), want (192.168.0.2,true)", ip, ok)
+	}
+
+	// flags 不含 0x2 的默认路由行被跳过（继续找下一行）。
+	// Default-route rows without the 0x2 flag are skipped (search continues).
+	noUp := "Iface\tDestination\tGateway\tFlags\n" +
+		"eth0\t00000000\t0200A8C0\t0001\t0\t0\t0\t00000000\n"
+	if _, ok := parseProcNetRouteGateway(noUp); ok {
+		t.Fatalf("flags without 0x2 should not match")
+	}
+
+	if _, ok := parseProcNetRouteGateway("Iface\tDestination\tGateway\tFlags\n" +
+		"eth0\tC0A80000\t0200A8C0\t0003\n"); ok {
+		t.Fatalf("non-default destination should not match")
+	}
+
+	// flags 列畸形 => 函数级短路失败（对齐 Rust `?` 语义）。
+	// A malformed flags column short-circuits the whole function (the Rust `?`).
+	if _, ok := parseProcNetRouteGateway("Iface\tDestination\tGateway\tFlags\n" +
+		"eth0\t00000000\t0200A8C0\tzzzz\n"); ok {
+		t.Fatalf("malformed flags should fail the parse")
+	}
+}
+
+// TestGetGatewayV4NonLinux 非 Linux 平台没有 /proc/net/route => NotFound；
+// Linux 上真实路由表依赖环境，跳过。
+// TestGetGatewayV4NonLinux: without /proc/net/route the lookup fails; on Linux
+// the real routing table depends on the environment, so the case is skipped.
+func TestGetGatewayV4NonLinux(t *testing.T) {
+	if runtime.GOOS == "linux" {
+		t.Skip("real /proc/net/route is environment dependent on linux")
+	}
+	if ip, err := GetGatewayV4(); err == nil {
+		t.Fatalf("GetGatewayV4 on %s = (%q,nil), want not-found error", runtime.GOOS, ip)
+	}
+}
+
+// TestRunUpdateByModuleConfigLogin RunUpdateByModule 走完整 ParseLoginParams：
+// CLI 缺失时从配置取 ikuai-url 登录。
+// TestRunUpdateByModuleConfigLogin drives RunUpdateByModule through the full
+// ParseLoginParams: with no CLI triple the ikuai-url from the config is used.
+func TestRunUpdateByModuleConfigLogin(t *testing.T) {
+	f := newFakeIkuai(t, map[string][]map[string]any{})
+	cfg := mixedCfg(t)
+	cfg.IkuaiURL = f.srv.URL
+	cfg.Username = "cfguser"
+	cfg.Password = "cfgpass"
+
+	var sink recSink
+	if err := RunUpdateByModule(cfg, "", "ispdomain", &UpdateOptions{}, sink.sink); err != nil {
+		t.Fatalf("RunUpdateByModule(config login): %v", err)
+	}
+	if got := f.names(); len(got) == 0 || got[0] != "login" {
+		t.Fatalf("calls = %v, want login first via config credentials", got)
+	}
+	if !sink.hasRecord(LevelSuccess, "Login succeeded") {
+		t.Fatalf("expected LOGIN:登录成功 log, got %+v", sink.recs)
+	}
+
+	// CLI 缺失且配置 URL 为空（非 Linux）=> login_params 网关错误。
+	// No CLI triple and an empty config URL (non-Linux) => the login_params gateway error.
+	if runtime.GOOS != "linux" {
+		err := RunUpdateByModule(&config.Config{}, "", "ispdomain", &UpdateOptions{}, sink.sink)
+		if err == nil || err.Kind != ErrKindLoginParams || err.Msg != "default gateway not found" {
+			t.Fatalf("RunUpdateByModule(no creds) = %v, want login_params gateway error", err)
+		}
 	}
 }

@@ -705,11 +705,13 @@ func updateStreamIpport(cfg *config.Config, api *ikuai.IKuaiClient, sink LogSink
 	if mapErr != nil {
 		return ikuaiErr(mapErr)
 	}
+	var foundName string
 	var foundID int64
 	found := false
-	for _, id := range streamMap {
-		foundID = id
-		found = true
+	// HashMap into_iter().next()：任取一条（单 tag 通常仅一条）。
+	// HashMap into_iter().next(): take an arbitrary entry (one rule per tag in practice).
+	for name, id := range streamMap {
+		foundName, foundID, found = name, id, true
 		break
 	}
 	spec := ikuai.StreamIpPortSpec{
@@ -729,8 +731,8 @@ func updateStreamIpport(cfg *config.Config, api *ikuai.IKuaiClient, sink LogSink
 
 	var res error
 	if found {
-		streamLogger.info("EDIT:正在修改", fmt.Sprintf("[1/1] %s: updating existing rule (ID: %d)...",
-			input.tag, foundID))
+		streamLogger.info("EDIT:正在修改", fmt.Sprintf("[1/1] %s: updating existing rule %s (ID: %d)...",
+			input.tag, foundName, foundID))
 		res = ikuai.EditStreamIpPort(api, spec, foundID)
 	} else {
 		streamLogger.info("ADD:正在添加", fmt.Sprintf("[1/1] %s: adding new rule...", input.tag))

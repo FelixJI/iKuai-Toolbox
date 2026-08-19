@@ -11,7 +11,6 @@ package update
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/FelixJI/iKuai-Toolbox/internal/config"
 	"github.com/FelixJI/iKuai-Toolbox/internal/ikuai"
@@ -40,10 +39,14 @@ func ValidateModule(module string) *UpdateError {
 // inside the module functions and never abort the pass; login failures and
 // unknown modules return an UpdateError.
 func RunUpdateByModule(cfg *config.Config, cliLogin, module string, opts *UpdateOptions, sink LogSink) *UpdateError {
-	params, err := resolveLoginParamsForRun(cfg, cliLogin)
+	if opts == nil {
+		opts = &UpdateOptions{}
+	}
+	baseURL, username, password, err := ParseLoginParams(cliLogin, cfg)
 	if err != nil {
 		return err
 	}
+	params := loginParams{BaseURL: baseURL, Username: username, Password: password}
 	api, clientErr := ikuai.NewIKuaiClient(params.BaseURL)
 	if clientErr != nil {
 		return ikuaiErr(clientErr)
@@ -96,32 +99,4 @@ type loginParams struct {
 	BaseURL  string
 	Username string
 	Password string
-}
-
-// resolveLoginParamsForRun 模块编排阶段的登录参数解析：当前仅支持 CLI
-// 三段式（url,user,pass），畸形或缺失 => login_params；配置/网关回退由
-// session.go 的 ParseLoginParams 提供（登录参数解析任务）。
-// resolveLoginParamsForRun resolves login params for the orchestration stage:
-// currently only the CLI triple (url,user,pass) is honored, malformed or
-// missing values yield login_params; the config/gateway fallbacks come from
-// ParseLoginParams in session.go (the login-params task).
-func resolveLoginParamsForRun(cfg *config.Config, cliLogin string) (*loginParams, *UpdateError) {
-	raw := strings.TrimSpace(cliLogin)
-	if raw == "" {
-		return nil, &UpdateError{Kind: ErrKindLoginParams, Msg: "ikuai-url is empty in config file"}
-	}
-	parts := strings.Split(raw, ",")
-	if len(parts) != 3 {
-		return nil, &UpdateError{Kind: ErrKindLoginParams, Msg: "command line parameter format error"}
-	}
-	for _, p := range parts {
-		if strings.TrimSpace(p) == "" {
-			return nil, &UpdateError{Kind: ErrKindLoginParams, Msg: "command line parameter format error"}
-		}
-	}
-	return &loginParams{
-		BaseURL:  strings.TrimSpace(parts[0]),
-		Username: strings.TrimSpace(parts[1]),
-		Password: strings.TrimSpace(parts[2]),
-	}, nil
 }
