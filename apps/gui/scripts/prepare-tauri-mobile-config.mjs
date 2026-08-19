@@ -44,6 +44,17 @@ if (process.env.IKB_SKIP_BEFORE_BUILD === '1') {
   config.build.beforeBuildCommand = ''
 }
 
+// Why/为什么: 移动壳不启动 Go sidecar（只弹提示窗），且 android/arm、android/amd64、
+// ios 无法产出 CGO_ENABLED=0 的 sidecar 二进制；剔除 externalBin 以免 tauri-build
+// 强制要求 binaries/ 下存在对应三元组文件。
+// English: the mobile shell never spawns the Go sidecar (notice window only),
+// and android/arm, android/amd64, ios cannot produce a CGO_ENABLED=0 sidecar;
+// stripping externalBin keeps tauri-build from requiring triple-suffixed
+// binaries that would never run.
+if (process.env.IKB_MOBILE_SKIP_SIDECAR === '1') {
+  delete config.bundle.externalBin
+}
+
 writeFileSync(outputPath, JSON.stringify(config, null, 2) + '\n')
 writeFileSync(metadataPath, JSON.stringify({ semverVersion, versionCode, builtAt }, null, 2) + '\n')
 process.stdout.write(`${semverVersion}\n`)

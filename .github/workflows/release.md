@@ -108,6 +108,12 @@ Docker 镜像标签始终包含：
 
 ## 5. 当前 CLI 构建矩阵
 
+所有 CLI / BSD / nightly 目标都在 ubuntu-latest 上用 Go 交叉编译产出：
+
+- 命令固定为 `CGO_ENABLED=0 GOOS=<goos> GOARCH=<goarch> [GOARM=<goarm>] go build -trimpath -ldflags "-s -w" -o ikuai-bypass[.exe] ./cmd/ikuai-bypass`
+- 构建前置：`frontends/app/dist` 必须先由 `build-frontend` 产出（`go:embed` 编译前置）
+- 目标由 `.github/build_matrix.jsonc` 的 `goos` / `goarch` / `goarm` 字段描述；`label` 是资产命名与 `docker/bin` 目录的稳定键
+
 ### Stable CLI
 
 `minimal`：
@@ -134,23 +140,30 @@ Docker 镜像标签始终包含：
 - `freebsd-amd64`
 - `freebsd-386`
 
+Go 原生支持 freebsd 交叉编译，不再依赖 FreeBSD VM。
+
 ### Experimental Nightly CLI
 
 仅 `full` 时启用：
 
-- `linux-mipsel` -> `mipsel-unknown-linux-musl`
-- `linux-mips64` -> `mips64-unknown-linux-gnuabi64`
-- `linux-mips64el` -> `mips64el-unknown-linux-gnuabi64`
-- `linux-mips` -> `mips-unknown-linux-gnu`
+- `linux-mipsel` -> `linux/mipsle`
+- `linux-mips64` -> `linux/mips64`
+- `linux-mips64el` -> `linux/mips64le`
+- `linux-mips` -> `linux/mips`
 
 说明：
 
-- 这组目标属于实验性 nightly 架构
+- 这组目标属于实验性 nightly 架构（Go 一等支持，不再需要 nightly 工具链）
 - 选择 `full` 时自动包含
 - job 名称固定为 `CLI Nightly Experimental`
 - 该 job 设置了 `continue-on-error: true`
 
 ## 6. 当前 GUI 构建矩阵
+
+Tauri 壳仍是 Rust 构建（`cargo tauri build`），但每个桌面目标在打包前先用 Go 交叉编译 sidecar：
+
+- 命令：`CGO_ENABLED=0 GOOS=<goos> GOARCH=<goarch> go build -trimpath -ldflags "-s -w" -o apps/gui/binaries/ikuai-bypass-go-<Rust 三元组>[.exe] ./cmd/ikuai-bypass`
+- 命名依据见 `apps/gui/README.md`：sidecar 基名为 `ikuai-bypass-go`（避免与主程序 `ikuai-bypass` 互相覆盖），文件名必须带目标三元组后缀
 
 ### Desktop GUI
 
@@ -174,6 +187,7 @@ Docker 镜像标签始终包含：
 
 说明：
 
+- 移动壳不启动 sidecar（只弹提示窗），且 `android/arm`、`android/amd64` 无法产出 `CGO_ENABLED=0` 的 sidecar，因此移动端构建配置会剔除 `bundle.externalBin`（`IKB_MOBILE_SKIP_SIDECAR=1`，见 `apps/gui/scripts/prepare-tauri-mobile-config.mjs`）
 - CI 会优先收集 `universal release unsigned.apk`
 - 上传前会执行 `zipalign` 和 `apksigner`
 - 最终发布的是可直接安装的已签名 APK，而不是原始 unsigned APK
@@ -186,6 +200,7 @@ Docker 镜像标签始终包含：
 
 说明：
 
+- 与 Android 相同，构建配置剔除 `bundle.externalBin`，不打包 sidecar
 - CI 会显式准备 CocoaPods，避免依赖 runner 上不稳定的 Homebrew 状态
 - 最终产物默认是未签名 `.app` 打包得到的 `.ipa`，用于分发存档而不是直接上架 App Store
 

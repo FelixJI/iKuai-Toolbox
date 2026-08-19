@@ -19,9 +19,8 @@ chmod +x "${context_dir}/docker-entrypoint.sh"
 
 while IFS= read -r item; do
   label="$(jq -r '.label' <<<"${item}")"
-  target="$(jq -r '.target' <<<"${item}")"
   archive_kind="$(jq -r '.archive' <<<"${item}")"
-  package_name="$(ikb_cli_zip_name "${target}")"
+  package_name="$(ikb_cli_zip_name "${label}")"
   unpack_dir="${context_dir}/unpack-${label}"
   package_path="${release_dir}/${package_name}"
 
@@ -30,7 +29,7 @@ while IFS= read -r item; do
   if [[ -f "${package_path}" ]]; then
     unzip -q "${package_path}" -d "${unpack_dir}"
   else
-    printf 'Missing CLI package for docker target: %s (%s, declared archive=%s)\n' "${target}" "${package_name}" "${archive_kind}" >&2
+    printf 'Missing CLI package for docker target: %s (%s, declared archive=%s)\n' "${label}" "${package_name}" "${archive_kind}" >&2
     exit 1
   fi
 
