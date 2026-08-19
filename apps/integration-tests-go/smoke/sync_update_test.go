@@ -335,3 +335,60 @@ MaxNumberOfOneRecords:
 		t.Fatalf("IPv6 content after shrink: got %v, want %v", got, want)
 	}
 }
+
+// 覆盖点（迁移台账 Task 5 遗留补测）：
+// 1) 模拟器注入 add 失败（code 1），第 1 片写入失败；
+// 2) 分片循环不中断：第 2 片仍执行并落库；
+// 3) 审计 JSONL 同时记录失败与成功两次 add，供精确断言。
+// Coverage (the Task 5 ledger leftover):
+// 1) The simulator injects an add failure (code 1) so chunk 1 cannot persist.
+// 2) The chunk loop continues: chunk 2 still executes and lands.
+// 3) The audit JSONL records both the failed and the successful add.
+func TestChunkFailureContinuesSmoke(t *testing.T) {
+	h := startHarness(t)
+
+	h.fixture.setText(t, "/chunkfail/isp.txt", "1.2.3.4\n1.2.3.5\n1.2.3.6\n1.2.3.7\n")
+	extra := fmt.Sprintf(`custom-isp:
+  - tag: FailIsp
+    url: %q
+MaxNumberOfOneRecords:
+  Isp: 2
+`, h.fixture.url("/chunkfail/isp.txt"))
+	cfgPath := h.writeConfig("chunk-failure.yml", renderTestConfig(h.sim.URL(), harnessUser, harnessPass, extra))
+
+	// 第 1 次 add 返回 code 1 且不落库；第 2 片恢复正常。
+	// The first add answers code 1 without persisting; chunk 2 recovers.
+	h.sim.InjectFailure("custom_isp", "add", 1)
+
+	res := h.runCLISuccess("chunk-failure sync", "-c", cfgPath, "-r", "once", "-m", "ispdomain")
+
+	adds := h.sim.Calls("custom_isp", "add")
+	if len(adds) != 2 {
+		t.Fatalf("expected 2 custom_isp add audit entries (chunk 1 failed + chunk 2), got %d:\n%s",
+			len(adds), h.sim.AuditJSONL())
+	}
+	if adds[0].Code != 1 {
+		t.Fatalf("chunk 1 add should have failed with code 1, got %d (%s)", adds[0].Code, adds[0].Message)
+	}
+	if adds[1].Code != 0 {
+		t.Fatalf("chunk 2 add should still run and succeed, got code %d (%s)", adds[1].Code, adds[1].Message)
+	}
+	firstIpgroup, _ := adds[0].Param["ipgroup"].(string)
+	secondIpgroup, _ := adds[1].Param["ipgroup"].(string)
+	if firstIpgroup != "1.2.3.4,1.2.3.5" || secondIpgroup != "1.2.3.6,1.2.3.7" {
+		t.Fatalf("add audit ipgroups out of order: first=%q second=%q", firstIpgroup, secondIpgroup)
+	}
+	if !res.stdoutContains("UPDATE:更新失败") || !res.stdoutContains("injected failure") {
+		t.Fatalf("stdout should log the chunk failure and injected cause, got:\n%s", res.stdout)
+	}
+
+	// 状态验证：仅第 2 片落库。
+	// State check: only chunk 2 persisted.
+	rows := showCustomIsp(t, h.loginAPI(), "FailIsp")
+	if len(rows) != 1 {
+		t.Fatalf("expected exactly the second chunk to persist, got %d rows", len(rows))
+	}
+	if got, want := csvItems(rows[0].Ipgroup), []string{"1.2.3.6", "1.2.3.7"}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("persisted chunk content: got %v, want %v", got, want)
+	}
+}
