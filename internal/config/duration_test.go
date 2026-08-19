@@ -22,7 +22,7 @@ func TestDurationDualFormat(t *testing.T) {
 		in      string
 		wantSec int
 	}{
-		{"30s", 30}, {"1m30s", 90}, {"5000000000", 5}, {"0", 0},
+		{"30s", 30}, {"1m30s", 90}, {`"1m 30s"`, 90}, {"5000000000", 5}, {"0", 0},
 	}
 	for _, c := range cases {
 		var d Duration

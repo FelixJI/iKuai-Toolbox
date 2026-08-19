@@ -1654,7 +1654,7 @@ dependencies = [
 
 [[package]]
 name = "ikb-app"
-version = "4.4.109"
+version = "5.0.0"
 dependencies = [
  "dirs",
  "log",

@@ -12,6 +12,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -92,7 +93,7 @@ func (d Duration) MarshalJSON() ([]byte, error) {
 // parseDurationString parses a duration string; negative durations are rejected
 // because humantime has no negative support.
 func parseDurationString(s string) (time.Duration, error) {
-	parsed, err := time.ParseDuration(s)
+	parsed, err := time.ParseDuration(strings.ReplaceAll(s, " ", ""))
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse duration %q: %w", s, err)
 	}
