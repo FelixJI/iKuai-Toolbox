@@ -80,6 +80,18 @@ func NewRuntimeService(cfg *config.Config, cliLogin, defaultCron, defaultModule 
 	return s
 }
 
+// UpdateConfig 替换运行时持有的配置快照（WebUI save-raw 后刷新，对齐
+// Rust 中 web 与 runtime 共享同一把配置锁、后续 run-once 即读新配置的语义）。
+// UpdateConfig swaps the config snapshot held by the runtime (refreshed by
+// the WebUI save-raw flow, mirroring the shared config lock of the Rust
+// web/runtime pair so subsequent run-once passes read the new config).
+func (s *RuntimeService) UpdateConfig(cfg *config.Config) {
+	if cfg == nil {
+		return
+	}
+	s.cfg.Store(cfg)
+}
+
 // SetDefaults 覆盖默认 module / cron 表达式；空白参数保持原值
 // （runtime.rs L122-132 的 trim + 空过滤）。
 // SetDefaults overrides the default module / cron expression; blank arguments
