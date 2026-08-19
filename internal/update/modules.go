@@ -1,5 +1,5 @@
-// modules.go 更新入口与模块分发矩阵，行为对齐 crates/core/src/update.rs
-// L57-124（run_update_by_module）与 crates/core/src/runner.rs（validate_module）。
+// modules.go 更新入口与模块分发矩阵，行为对齐 rust_archive/crates/core/src/update.rs
+// L57-124（run_update_by_module）与 rust_archive/crates/core/src/runner.rs（validate_module）。
 // 严格顺序：先 Login，再按 module 串行执行（普通 for 调用链天然顺序，
 // 禁止 goroutine 并发跑更新）；组合模式必须先落地 IP 分组再处理域名类规则。
 // The update entrypoint and module dispatch matrix, aligned with update.rs

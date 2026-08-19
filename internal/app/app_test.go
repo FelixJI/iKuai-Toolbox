@@ -1,10 +1,10 @@
 // app_test.go app 服务层测试：请求别名解码 / 更新检查 / 远程拉取 / URL 归一化 /
 // 清理顺序 / 配置元信息 / 诊断报告，全部走标准 testing + httptest。
-// 行为规格对齐 crates/core/src/app/ 各文件。
+// 行为规格对齐 rust_archive/crates/core/src/app/ 各文件。
 // app service-layer tests: request alias decoding / update checks / remote
 // fetching / URL normalization / clean ordering / config meta / the
 // diagnostics report, all on the standard testing + httptest stack,
-// aligned with the files under crates/core/src/app/.
+// aligned with the files under rust_archive/crates/core/src/app/.
 package app
 
 import (

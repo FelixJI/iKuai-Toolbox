@@ -16,7 +16,7 @@ func yamlUnmarshalStr(s string, v interface{}) error {
 }
 
 // TestDurationDualFormat 验证 Duration 同时接受 humantime 字符串与纳秒整数两种输入
-// 对应 crates/core/src/config.rs duration_compat L12-74 的 deserialize 行为。
+// 对应 rust_archive/crates/core/src/config.rs duration_compat L12-74 的 deserialize 行为。
 func TestDurationDualFormat(t *testing.T) {
 	cases := []struct {
 		in      string

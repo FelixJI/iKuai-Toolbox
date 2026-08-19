@@ -14,7 +14,7 @@ trap cleanup SIGINT SIGTERM
 
 cli_dev() {
     cd "${PROJECT_ROOT}"
-    cargo run --bin ikb-cli -- "$@"
+    go run ./cmd/ikuai-bypass -- "$@"
 }
 
 

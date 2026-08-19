@@ -1,4 +1,4 @@
-// url.go 爱快地址归一化，行为对齐 crates/core/src/app/url.rs L1-10。
+// url.go 爱快地址归一化，行为对齐 rust_archive/crates/core/src/app/url.rs L1-10。
 // （https 前缀版 normalize_url_prefix 已由 internal/netx.NormalizeURLPrefix 提供。）
 // URL normalization for iKuai addresses, aligned with url.rs L1-10.
 // (The https-flavored normalize_url_prefix already lives in netx.NormalizeURLPrefix.)

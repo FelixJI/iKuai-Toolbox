@@ -1,10 +1,10 @@
-// simulator.go Go 版爱快模拟器（行为对齐 apps/integration-tests/src/ikuai_simulator/mod.rs）。
+// simulator.go Go 版爱快模拟器（行为对齐 rust_archive/apps-integration-tests/src/ikuai_simulator/mod.rs）。
 // 以 httptest 提供真实 HTTP 服务：/Action/login 校验 md5/base64 双字段并发会话
 // cookie；/Action/call 按 func_name+action 分发内存存储（custom_isp /
 // route_object(type 0/1) / stream_domain / stream_ipport），show 支持 FILTER1
 // 的 "type,=,N" 过滤；每次 login/call 追加一条 JSONL 审计记录供断言。
 // A Go iKuai simulator (behaviorally aligned with the Rust simulator in
-// apps/integration-tests/src/ikuai_simulator/mod.rs). It serves real HTTP via
+// rust_archive/apps-integration-tests/src/ikuai_simulator/mod.rs). It serves real HTTP via
 // httptest: /Action/login validates the md5/base64 pair and issues a session
 // cookie; /Action/call dispatches on func_name+action over in-memory stores
 // (custom_isp / route_object(type 0/1) / stream_domain / stream_ipport) with

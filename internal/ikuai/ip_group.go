@@ -1,5 +1,5 @@
 // ip_group.go IPv4 分组（route_object type=0）CRUD 与索引解析，
-// 行为对齐 crates/core/src/ikuai/ip_group.rs。
+// 行为对齐 rust_archive/crates/core/src/ikuai/ip_group.rs。
 // IPv4 group (route_object type=0) CRUD and index parsing, aligned with ip_group.rs.
 package ikuai
 

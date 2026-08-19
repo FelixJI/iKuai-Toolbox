@@ -1,8 +1,8 @@
-// cron_norm.go cron 表达式归一化，行为对齐 crates/core/src/runtime.rs
+// cron_norm.go cron 表达式归一化，行为对齐 rust_archive/crates/core/src/runtime.rs
 // L425-450 的 normalize_cron_expr_for_parser（按既定裁决的字段数映射改写为
 // robfig/cron 6 段含秒解析器的确定性规则）。
 // Cron expression normalization aligned with normalize_cron_expr_for_parser of
-// crates/core/src/runtime.rs L425-450, rewritten as deterministic field-count
+// rust_archive/crates/core/src/runtime.rs L425-450, rewritten as deterministic field-count
 // rules for the 6-field second-capable robfig/cron parser.
 package runtime
 

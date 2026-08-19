@@ -1,10 +1,10 @@
 // harness_test.go smoke 共用测试基座：一次性构建 CLI 二进制、启动模拟器与
 // 列表源 fixture、渲染测试配置、以子进程运行 CLI 并捕获输出。
-// 行为对齐 apps/integration-tests/tests/common/mod.rs 的 simulator 后端路径。
+// 行为对齐 rust_archive/apps-integration-tests/tests/common/mod.rs 的 simulator 后端路径。
 // Shared smoke-test harness: build the CLI binary once, start the simulator
 // and the list-source fixture, render test configs, and run the CLI as a
 // subprocess with captured output. Aligned with the simulator-backend path of
-// apps/integration-tests/tests/common/mod.rs.
+// rust_archive/apps-integration-tests/tests/common/mod.rs.
 package smoke
 
 import (

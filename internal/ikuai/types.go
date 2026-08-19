@@ -1,6 +1,6 @@
-// types.go 爱快模块公共常量与信封类型，行为对齐 crates/core/src/ikuai/types.rs。
+// types.go 爱快模块公共常量与信封类型，行为对齐 rust_archive/crates/core/src/ikuai/types.rs。
 // Public constants and call envelope types for the iKuai module,
-// behaviorally aligned with crates/core/src/ikuai/types.rs.
+// behaviorally aligned with rust_archive/crates/core/src/ikuai/types.rs.
 package ikuai
 
 import "encoding/json"

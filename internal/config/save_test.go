@@ -1,5 +1,5 @@
 // 安全写盘与默认路径测试 / Secure save and default-path tests
-// 行为规格对齐 crates/core/src/config.rs L388-466 与 crates/core/src/paths.rs。
+// 行为规格对齐 rust_archive/crates/core/src/config.rs L388-466 与 rust_archive/crates/core/src/paths.rs。
 package config
 
 import (

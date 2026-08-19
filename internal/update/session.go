@@ -1,4 +1,4 @@
-// session.go 登录参数解析，行为对齐 crates/core/src/session.rs L30-78：
+// session.go 登录参数解析，行为对齐 rust_archive/crates/core/src/session.rs L30-78：
 // CLI `url,user,pass` > 配置 ikuai-url/username/password > router.go 网关猜测。
 // Login-parameter resolution aligned with session.rs L30-78: the CLI triple
 // `url,user,pass` wins over the config values, which win over the gateway guess.

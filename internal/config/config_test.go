@@ -1,5 +1,5 @@
 // 配置结构解析与默认值测试 / Config parsing and defaults tests
-// 行为规格对齐 crates/core/src/config.rs L223-412。
+// 行为规格对齐 rust_archive/crates/core/src/config.rs L223-412。
 package config
 
 import (

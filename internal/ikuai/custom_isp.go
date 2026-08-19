@@ -1,4 +1,4 @@
-// custom_isp.go 自定义运营商 CRUD 与分片索引解析，行为对齐 crates/core/src/ikuai/custom_isp.rs。
+// custom_isp.go 自定义运营商 CRUD 与分片索引解析，行为对齐 rust_archive/crates/core/src/ikuai/custom_isp.rs。
 // Custom ISP CRUD plus chunk-index parsing, aligned with custom_isp.rs.
 package ikuai
 

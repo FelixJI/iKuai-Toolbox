@@ -1,7 +1,7 @@
 // config.go 配置结构与解析 / Config structures and parsing
-// 行为规格对齐 crates/core/src/config.rs L90-412：
+// 行为规格对齐 rust_archive/crates/core/src/config.rs L90-412：
 // 字段命名、serde rename/alias、默认值与 apply_defaults 逐条对齐。
-// Behavioral spec mirrors crates/core/src/config.rs L90-412:
+// Behavioral spec mirrors rust_archive/crates/core/src/config.rs L90-412:
 // field naming, serde rename/alias, defaults, and apply_defaults are aligned item by item.
 package config
 
@@ -185,9 +185,9 @@ type MaxNumberOfOneRecordsConfig struct {
 }
 
 // Config 主配置结构 / main configuration structure.
-// yaml/json 键与 crates/core/src/config.rs 的 serde rename 一一对应，
+// yaml/json 键与 rust_archive/crates/core/src/config.rs 的 serde rename 一一对应，
 // JSON 顶层键是前端 fromBackendMeta 的契约，不得随意改动。
-// yaml/json keys map one-to-one to the serde renames in crates/core/src/config.rs;
+// yaml/json keys map one-to-one to the serde renames in rust_archive/crates/core/src/config.rs;
 // the JSON top-level keys are a contract consumed by the frontend fromBackendMeta.
 type Config struct {
 	IkuaiURL              string                      `yaml:"ikuai-url" json:"ikuai-url"`

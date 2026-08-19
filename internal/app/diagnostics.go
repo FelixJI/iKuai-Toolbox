@@ -1,8 +1,8 @@
-// diagnostics.go 登录/代理连通性测试与诊断报告，行为对齐 crates/core/src/app/diagnostics.rs（491 行）。
+// diagnostics.go 登录/代理连通性测试与诊断报告，行为对齐 rust_archive/crates/core/src/app/diagnostics.rs（491 行）。
 // 密码只以 (set,len=N) 形式出现在报告中，绝不回传明文；cron 归一化后给出下次触发时刻；
 // 规则 URL 以 Range bytes=0-2047 抽样探测。
 // Login/proxy connectivity probes and the diagnostics report, aligned with
-// crates/core/src/app/diagnostics.rs (491 lines). Passwords only ever appear as
+// rust_archive/crates/core/src/app/diagnostics.rs (491 lines). Passwords only ever appear as
 // (set,len=N); the cron expression is normalized with its next fire time; rule
 // URLs are sampled with a Range bytes=0-2047 probe.
 package app
@@ -126,9 +126,9 @@ const githubProxyProbeURL = "https://raw.githubusercontent.com/FelixJI/iKuai-Too
 const ghProxyProbeUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 // CoreVersion 报告中的 ikb-core 版本行；Rust 侧取 env!("CARGO_PKG_VERSION")
-// （crates/core 4.4.109）。Go 侧唯一的版本常量来源（cmd 不再单独定义）。
+// （rust_archive/crates/core 4.4.109）。Go 侧唯一的版本常量来源（cmd 不再单独定义）。
 // CoreVersion feeds the ikb-core report line; the Rust side reads
-// env!("CARGO_PKG_VERSION") (crates/core 4.4.109). On the Go side this is the
+// env!("CARGO_PKG_VERSION") (rust_archive/crates/core 4.4.109). On the Go side this is the
 // single version constant (cmd defines no separate one).
 const CoreVersion = "5.0.0-go.1"
 

@@ -1,5 +1,5 @@
-// utils.go 爱快模块工具函数，行为对齐 crates/core/src/ikuai/utils.rs。
-// Utility helpers for the iKuai module, aligned with crates/core/src/ikuai/utils.rs.
+// utils.go 爱快模块工具函数，行为对齐 rust_archive/crates/core/src/ikuai/utils.rs。
+// Utility helpers for the iKuai module, aligned with rust_archive/crates/core/src/ikuai/utils.rs.
 package ikuai
 
 import (

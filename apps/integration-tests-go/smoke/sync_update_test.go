@@ -1,8 +1,8 @@
 // sync_update_test.go 同规模更新走原地 edit 的冒烟。
-// 覆盖点对齐 apps/integration-tests/tests/rule_sync_update_in_place_smoke.rs。
+// 覆盖点对齐 rust_archive/apps-integration-tests/tests/rule_sync_update_in_place_smoke.rs。
 // sync_update_test.go Smoke for same-scale updates going through in-place
 // edits. Coverage mirrors
-// apps/integration-tests/tests/rule_sync_update_in_place_smoke.rs.
+// rust_archive/apps-integration-tests/tests/rule_sync_update_in_place_smoke.rs.
 package smoke
 
 import (

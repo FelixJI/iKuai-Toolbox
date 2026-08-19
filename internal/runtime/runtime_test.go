@@ -1,7 +1,7 @@
 // runtime_test.go RuntimeService 与日志代理测试（TDD 先行），
-// 行为规格对齐 crates/core/src/runtime.rs（450 行）。
+// 行为规格对齐 rust_archive/crates/core/src/runtime.rs（450 行）。
 // RuntimeService and log-broker tests (TDD first), aligned with the
-// behavioral spec of crates/core/src/runtime.rs (450 lines).
+// behavioral spec of rust_archive/crates/core/src/runtime.rs (450 lines).
 package runtime
 
 import (

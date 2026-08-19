@@ -1,5 +1,5 @@
 // update_test.go 更新主流程测试（内存版假爱快 + 列表源服务器），
-// 行为对齐 crates/core/src/update.rs：Safe-Before / Edit 优先 / 分片清理 / 严格顺序。
+// 行为对齐 rust_archive/crates/core/src/update.rs：Safe-Before / Edit 优先 / 分片清理 / 严格顺序。
 // Update main-flow tests (in-memory fake iKuai + rule-source servers), aligned with
 // update.rs: Safe-Before / Edit-first / shrink cleanup / strict ordering.
 package update

@@ -1,5 +1,5 @@
-// utils_test.go 工具函数测试，行为对齐 crates/core/src/ikuai/utils.rs。
-// Utility function tests aligned with crates/core/src/ikuai/utils.rs.
+// utils_test.go 工具函数测试，行为对齐 rust_archive/crates/core/src/ikuai/utils.rs。
+// Utility function tests aligned with rust_archive/crates/core/src/ikuai/utils.rs.
 package ikuai
 
 import (

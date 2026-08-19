@@ -1,8 +1,8 @@
 // broker.go 日志代理：5000 条环形缓冲 + 订阅广播（channel 容量 512，满则
-// 丢弃不阻塞），行为对齐 crates/core/src/runtime.rs L26-75 的 LogBroker。
+// 丢弃不阻塞），行为对齐 rust_archive/crates/core/src/runtime.rs L26-75 的 LogBroker。
 // Log broker: a 5000-entry ring buffer plus broadcast subscriptions
 // (channels of capacity 512, dropping instead of blocking when full),
-// aligned with LogBroker of crates/core/src/runtime.rs L26-75.
+// aligned with LogBroker of rust_archive/crates/core/src/runtime.rs L26-75.
 package runtime
 
 import (

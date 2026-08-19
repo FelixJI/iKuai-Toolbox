@@ -1,10 +1,10 @@
 // update.go 更新主流程的五个单条目更新函数 + 下载/清洗/分片/导出基础设施，
-// 行为对齐 crates/core/src/update.rs（L389-1045）。
+// 行为对齐 rust_archive/crates/core/src/update.rs（L389-1045）。
 // 核心数据安全约束：每个更新函数第一步 httpGet，失败在任何 API 调用之前
 // return（Safe-Before）；分片循环 Edit 优先（命中传既有 id；ip/ipv6 分组
 // 沿用既有分组名保持名称不变）；循环后冗余分片合并 CSV 一次 Del。
 // The five per-entry update functions plus the download/clean/chunk/export
-// infrastructure, aligned with crates/core/src/update.rs (L389-1045).
+// infrastructure, aligned with rust_archive/crates/core/src/update.rs (L389-1045).
 // Core data-safety invariants: every updater starts with httpGet and returns
 // before any API call on failure (Safe-Before); the chunk loop prefers Edit
 // (existing id on hit; ip/ipv6 groups reuse the existing group name so names

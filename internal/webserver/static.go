@@ -1,8 +1,8 @@
-// static.go 内嵌静态资源与 SPA fallback，行为对齐 apps/cli/src/embedded.rs：
+// static.go 内嵌静态资源与 SPA fallback，行为对齐 rust_archive/apps-cli/src/embedded.rs：
 // 未命中回退 index.html，index.html 亦缺失才 404 "Not found"；
 // MIME 按扩展名映射，其余 octet-stream。
 // Embedded static assets and the SPA fallback, aligned with
-// apps/cli/src/embedded.rs: a miss falls back to index.html and only a
+// rust_archive/apps-cli/src/embedded.rs: a miss falls back to index.html and only a
 // missing index.html answers 404 "Not found"; MIME types map by extension
 // with everything else falling to octet-stream.
 package webserver

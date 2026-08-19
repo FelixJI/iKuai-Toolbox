@@ -1,4 +1,4 @@
-// stream_domain.go 域名分流 CRUD，行为对齐 crates/core/src/ikuai/stream_domain.rs。
+// stream_domain.go 域名分流 CRUD，行为对齐 rust_archive/crates/core/src/ikuai/stream_domain.rs。
 // Stream-domain CRUD, aligned with stream_domain.rs.
 package ikuai
 

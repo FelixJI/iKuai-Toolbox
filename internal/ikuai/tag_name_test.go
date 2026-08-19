@@ -1,6 +1,6 @@
-// tag_name_test.go IKB 标签构建与匹配测试，行为字节级对齐 crates/core/src/ikuai/tag_name.rs。
+// tag_name_test.go IKB 标签构建与匹配测试，行为字节级对齐 rust_archive/crates/core/src/ikuai/tag_name.rs。
 // 所有期望值的推导依据均以 tag_name.rs 行号标注；测试先于实现编写（TDD）。
-// Behavioral tests byte-aligned with crates/core/src/ikuai/tag_name.rs.
+// Behavioral tests byte-aligned with rust_archive/crates/core/src/ikuai/tag_name.rs.
 // Every expected value cites the tag_name.rs lines it derives from; tests were written before the implementation (TDD).
 package ikuai
 
@@ -188,7 +188,7 @@ func TestMatchTagNameFilterIpGroupRoundTrip(t *testing.T) {
 	}
 }
 
-// TestManagedCommentMarkers 对齐 crates/core/src/ikuai/types.rs L12-17 的固定顺序。
+// TestManagedCommentMarkers 对齐 rust_archive/crates/core/src/ikuai/types.rs L12-17 的固定顺序。
 func TestManagedCommentMarkers(t *testing.T) {
 	got := ManagedCommentMarkers()
 	want := [3]string{NewComment, LegacyRepoComment, CommentIkuaiBypass}

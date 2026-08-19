@@ -1,6 +1,6 @@
-// plan.go 网络代理规划层，行为逐行对齐 crates/core/src/net.rs（175 行）。
+// plan.go 网络代理规划层，行为逐行对齐 rust_archive/crates/core/src/net.rs（175 行）。
 // 行号引用均指向 net.rs；http.Client 的代理通过替换 Transport 实现（reqwest builder 语义）。
-// plan.go proxy planning layer, line-aligned with crates/core/src/net.rs (175 lines).
+// plan.go proxy planning layer, line-aligned with rust_archive/crates/core/src/net.rs (175 lines).
 // Line references cite net.rs; proxies are applied by replacing http.Client.Transport (reqwest builder semantics).
 package netx
 

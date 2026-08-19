@@ -1,7 +1,7 @@
 // main.go CLI 入口：Go 风格单横线长参兼容、运行模式分发、信号处理与退出码，
-// 行为对齐 apps/cli/src/main.rs + lib.rs。
+// 行为对齐 rust_archive/apps-cli/src/main.rs + lib.rs。
 // CLI entry point: Go-style single-dash long-flag compatibility, run-mode
-// dispatch, signal handling, and exit codes, aligned with apps/cli/src/main.rs + lib.rs.
+// dispatch, signal handling, and exit codes, aligned with rust_archive/apps-cli/src/main.rs + lib.rs.
 package main
 
 import (

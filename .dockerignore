@@ -14,6 +14,7 @@ frontends/app/.bun-install
 frontends/app/.bun-tmp
 frontends/app/.astro-dev.log
 golang_archive
+rust_archive
 release
 .docker-release
 *.log
@@ -21,16 +22,11 @@ release
 .idea
 .envrc
 apps
-crates
 docs
 api-docs
 dev-docs
 screenshot
 private
-Cargo.toml
-Cargo.lock
-Cross.toml
-release.toml
 flake.nix
 flake.lock
 flake_pkgs_let.nix

@@ -1,4 +1,4 @@
-// github.go GitHub Releases 更新检查，行为对齐 crates/core/src/app/github.rs（60 行）：
+// github.go GitHub Releases 更新检查，行为对齐 rust_archive/crates/core/src/app/github.rs（60 行）：
 // 走 netx.PlanGithubAPI 规划（从不改写 URL、从不使用 ghproxy），
 // UA "ikb-core"、connect 8s / 总 15s 超时。
 // GitHub Releases update checks aligned with app/github.rs (60 lines):

@@ -1,6 +1,6 @@
-// plan_test.go 代理规划层测试，行为对齐 crates/core/src/net.rs（175 行）。
+// plan_test.go 代理规划层测试，行为对齐 rust_archive/crates/core/src/net.rs（175 行）。
 // 每个期望值均标注 net.rs 行号推导依据；测试先于实现编写（TDD）。
-// plan_test.go proxy planning tests, behavior mirrors crates/core/src/net.rs (175 lines).
+// plan_test.go proxy planning tests, behavior mirrors rust_archive/crates/core/src/net.rs (175 lines).
 // Every expected value cites the net.rs lines it derives from; tests were written before the implementation (TDD).
 package netx
 

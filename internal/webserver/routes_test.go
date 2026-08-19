@@ -1,7 +1,7 @@
 // routes_test.go Web 服务 15 端点契约测试（TDD 先行），
-// 行为规格对齐 apps/cli/src/web.rs 的路由表与响应语义。
+// 行为规格对齐 rust_archive/apps-cli/src/web.rs 的路由表与响应语义。
 // Contract tests for the 15 web endpoints (TDD first), aligned with the
-// routing table and response semantics of apps/cli/src/web.rs.
+// routing table and response semantics of rust_archive/apps-cli/src/web.rs.
 package webserver
 
 import (

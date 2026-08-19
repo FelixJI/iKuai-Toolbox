@@ -1,8 +1,8 @@
 // safe_before_test.go Safe-Before 冒烟：源 503 后再次同步，旧规则零变动。
-// 覆盖点对齐 apps/integration-tests/tests/safe_before_smoke.rs。
+// 覆盖点对齐 rust_archive/apps-integration-tests/tests/safe_before_smoke.rs。
 // safe_before_test.go Safe-Before smoke: re-sync while the source answers 503
 // and the existing rules must stay untouched. Coverage mirrors
-// apps/integration-tests/tests/safe_before_smoke.rs.
+// rust_archive/apps-integration-tests/tests/safe_before_smoke.rs.
 package smoke
 
 import (

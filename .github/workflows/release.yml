@@ -664,8 +664,11 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
+          # Why/为什么: 根 workspace 已归档到 rust_archive/，apps/gui 是独立 crate。
+          # English: the root workspace is archived under rust_archive/; apps/gui
+          # is a standalone crate now.
           workspaces: |
-            . -> target
+            apps/gui -> target
           cache-on-failure: true
           shared-key: gui-${{ matrix.label }}
 
@@ -1148,8 +1151,11 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
+          # Why/为什么: 根 workspace 已归档到 rust_archive/，apps/gui 是独立 crate。
+          # English: the root workspace is archived under rust_archive/; apps/gui
+          # is a standalone crate now.
           workspaces: |
-            . -> target
+            apps/gui -> target
           cache-on-failure: true
           shared-key: gui-ios-${{ matrix.label }}
 
@@ -1481,7 +1487,7 @@ jobs:
 
           read_cli_semver() {
             local raw
-            raw="$(sed -n 's/^version = "\([^"]*\)"$/\1/p' apps/cli/Cargo.toml | head -1)"
+            raw="$(sed -n 's/^const CoreVersion = "\([^"]*\)"$/\1/p' internal/app/diagnostics.go | head -1)"
             normalize_ipkg_version "${raw}"
           }
 

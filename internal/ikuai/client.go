@@ -1,4 +1,4 @@
-// client.go 爱快 API 客户端（登录 + 通用 call），行为对齐 crates/core/src/ikuai/types.rs L142-239。
+// client.go 爱快 API 客户端（登录 + 通用 call），行为对齐 rust_archive/crates/core/src/ikuai/types.rs L142-239。
 // iKuai API client (login + generic call), behaviorally aligned with types.rs L142-239.
 package ikuai
 

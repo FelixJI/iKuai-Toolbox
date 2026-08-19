@@ -1,10 +1,10 @@
 // duration.go 提供 humantime 双格式兼容的 Duration 类型
 // duration.go provides the Duration type with humantime dual-format compatibility.
 //
-// 行为规格对齐 crates/core/src/config.rs duration_compat（L12-74）：
+// 行为规格对齐 rust_archive/crates/core/src/config.rs duration_compat（L12-74）：
 // 反序列化同时接受纳秒整数（visit_u64/visit_i64）与 humantime 字符串（visit_str），
 // 序列化统一输出 humantime 风格字符串。
-// Behavioral spec mirrors crates/core/src/config.rs duration_compat (L12-74):
+// Behavioral spec mirrors rust_archive/crates/core/src/config.rs duration_compat (L12-74):
 // deserialization accepts both nanosecond integers (visit_u64/visit_i64)
 // and humantime strings (visit_str); serialization emits a humantime-style string.
 package config

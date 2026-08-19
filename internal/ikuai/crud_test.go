@@ -1,8 +1,8 @@
 // crud_test.go 爱快规则 CRUD 五模块共用测试（httptest 假爱快），
-// 行为对齐 crates/core/src/ikuai/ 下 custom_isp.rs / ip_group.rs / ipv6_group.rs /
+// 行为对齐 rust_archive/crates/core/src/ikuai/ 下 custom_isp.rs / ip_group.rs / ipv6_group.rs /
 // stream_domain.rs / stream_ipport.rs / clean.rs。
 // Shared tests for the five iKuai rule CRUD modules against one httptest fake,
-// aligned with the Rust sources under crates/core/src/ikuai/.
+// aligned with the Rust sources under rust_archive/crates/core/src/ikuai/.
 package ikuai
 
 import (

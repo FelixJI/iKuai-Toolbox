@@ -1,5 +1,5 @@
 // ipv6_group.go IPv6 分组（route_object type=1）CRUD，与 ip_group 对称，
-// 行为对齐 crates/core/src/ikuai/ipv6_group.rs。
+// 行为对齐 rust_archive/crates/core/src/ikuai/ipv6_group.rs。
 // IPv6 group (route_object type=1) CRUD, symmetric with ip_group, aligned with ipv6_group.rs.
 package ikuai
 

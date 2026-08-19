@@ -1,4 +1,4 @@
-// config_meta.go 配置元信息（/api/config 响应体），行为对齐 crates/core/src/app/config_meta.rs（34 行）。
+// config_meta.go 配置元信息（/api/config 响应体），行为对齐 rust_archive/crates/core/src/app/config_meta.rs（34 行）。
 // Config metadata (the /api/config response body), aligned with app/config_meta.rs (34 lines).
 package app
 

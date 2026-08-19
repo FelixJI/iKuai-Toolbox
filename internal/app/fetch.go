@@ -1,4 +1,4 @@
-// fetch.go 远程配置/规则文本拉取，行为对齐 crates/core/src/app/fetch.rs（36 行）：
+// fetch.go 远程配置/规则文本拉取，行为对齐 rust_archive/crates/core/src/app/fetch.rs（36 行）：
 // 走 netx.PlanRuleFetch 规划（smart+ghproxy 命中 github 源时改写 URL 并直连），
 // UA "ikb-core"、总 15s 超时。
 // Remote config/rule text fetching aligned with app/fetch.rs (36 lines):

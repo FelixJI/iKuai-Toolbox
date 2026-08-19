@@ -1,4 +1,4 @@
-// stream_ipport.go 端口分流 CRUD，行为对齐 crates/core/src/ikuai/stream_ipport.rs。
+// stream_ipport.go 端口分流 CRUD，行为对齐 rust_archive/crates/core/src/ikuai/stream_ipport.rs。
 // Stream ip/port CRUD, aligned with stream_ipport.rs.
 package ikuai
 

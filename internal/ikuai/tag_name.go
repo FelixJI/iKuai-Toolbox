@@ -1,5 +1,5 @@
-// tag_name.go IKB 标签构建与匹配，字节级对齐 crates/core/src/ikuai/tag_name.rs。
-// Tag name building and matching, byte-aligned with crates/core/src/ikuai/tag_name.rs.
+// tag_name.go IKB 标签构建与匹配，字节级对齐 rust_archive/crates/core/src/ikuai/tag_name.rs。
+// Tag name building and matching, byte-aligned with rust_archive/crates/core/src/ikuai/tag_name.rs.
 package ikuai
 
 import (

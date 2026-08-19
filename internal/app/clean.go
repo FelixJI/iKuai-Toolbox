@@ -1,4 +1,4 @@
-// clean.go 清理流程编排，行为对齐 crates/core/src/app/clean.rs（71 行）：
+// clean.go 清理流程编排，行为对齐 rust_archive/crates/core/src/app/clean.rs（71 行）：
 // 顺序固定 custom_isp→stream_domain→ip_group→ipv6_group→stream_ipport，
 // 任一步失败即停；错误文案保持英文（面向 API），对齐 CleanError 的 thiserror Display。
 // Clean-flow orchestration aligned with app/clean.rs (71 lines): the fixed

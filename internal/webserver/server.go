@@ -1,8 +1,8 @@
 // server.go Web 服务主体：Server 装配、Handler 挂载入口与监听启动，
-// 行为对齐 apps/cli/src/web.rs 的 AppState / start_web_server / print_webui_banner。
+// 行为对齐 rust_archive/apps-cli/src/web.rs 的 AppState / start_web_server / print_webui_banner。
 // The web server core: Server assembly, the Handler entry point mounting all
 // routes, and the listener startup, aligned with the AppState /
-// start_web_server / print_webui_banner of apps/cli/src/web.rs.
+// start_web_server / print_webui_banner of rust_archive/apps-cli/src/web.rs.
 package webserver
 
 import (

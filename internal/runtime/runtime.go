@@ -1,7 +1,7 @@
-// runtime.go RuntimeService（WebUI/CLI 共用），行为对齐 crates/core/src/runtime.rs
+// runtime.go RuntimeService（WebUI/CLI 共用），行为对齐 rust_archive/crates/core/src/runtime.rs
 // L77-423：run-once 的 CAS 防重入、cron 的归一化启动与每秒轮询 next_run_at、
 // 状态查询与停止语义。日志代理见 broker.go。
-// RuntimeService shared by WebUI and CLI, aligned with crates/core/src/runtime.rs
+// RuntimeService shared by WebUI and CLI, aligned with rust_archive/crates/core/src/runtime.rs
 // L77-423: the CAS reentrancy guard of run-once, cron startup with
 // normalization plus the per-second next_run_at polling, status queries and
 // stop semantics. The log broker lives in broker.go.

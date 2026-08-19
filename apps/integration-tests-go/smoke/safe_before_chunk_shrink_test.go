@@ -1,10 +1,10 @@
 // safe_before_chunk_shrink_test.go 多分片 Safe-Before 冒烟：上游本应缩容但
 // 下载失败时，旧分片数量、ID 与内容都不被清理或误改。
-// 覆盖点对齐 apps/integration-tests/tests/safe_before_chunk_shrink_smoke.rs。
+// 覆盖点对齐 rust_archive/apps-integration-tests/tests/safe_before_chunk_shrink_smoke.rs。
 // safe_before_chunk_shrink_test.go Multi-chunk Safe-Before smoke: when a shrink
 // would reduce chunks but the upstream fetch fails, the old chunk counts, IDs,
 // and contents all survive. Coverage mirrors
-// apps/integration-tests/tests/safe_before_chunk_shrink_smoke.rs.
+// rust_archive/apps-integration-tests/tests/safe_before_chunk_shrink_smoke.rs.
 package smoke
 
 import (

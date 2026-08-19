@@ -1,7 +1,7 @@
-// auth_test.go BasicAuth 动态配置行为测试，规格对齐 apps/cli/src/web.rs
+// auth_test.go BasicAuth 动态配置行为测试，规格对齐 rust_archive/apps-cli/src/web.rs
 // 的 basic_auth/unauthorized（L451-519）。
 // Dynamic-config BasicAuth tests, aligned with the basic_auth/unauthorized
-// behavior of apps/cli/src/web.rs (L451-519).
+// behavior of rust_archive/apps-cli/src/web.rs (L451-519).
 package webserver
 
 import (

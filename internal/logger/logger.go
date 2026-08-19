@@ -1,9 +1,9 @@
-// logger.go 日志记录器与 ANSI 渲染，行为对齐 crates/core/src/logger.rs（151 行）：
+// logger.go 日志记录器与 ANSI 渲染，行为对齐 rust_archive/crates/core/src/logger.rs（151 行）：
 // LogLevel 枚举值、LogRecord 五字段 JSON 形状、Logger（module + sink）、
 // Renderer（无色纯文本 / 彩色 + 三段正则高亮）。
 // 本文件是 LogLevel/LogRecord/LogSink 的规范定义处（Task 6 归一），
 // internal/update 以类型别名引用同一形状。
-// Logger and ANSI rendering aligned with crates/core/src/logger.rs (151 lines):
+// Logger and ANSI rendering aligned with rust_archive/crates/core/src/logger.rs (151 lines):
 // the LogLevel enum values, the five-field LogRecord JSON shape, Logger
 // (module + sink), and Renderer (plain text / colored with three-pass regex
 // highlighting). This file is the canonical home of LogLevel/LogRecord/LogSink

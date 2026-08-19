@@ -1,5 +1,5 @@
 // clean_test.go 清理模式冒烟：cleanAll 全量清理与按 tag 定向清理。
-// 覆盖点对齐 apps/integration-tests/tests/clean_all_smoke.rs 与
+// 覆盖点对齐 rust_archive/apps-integration-tests/tests/clean_all_smoke.rs 与
 // clean_mode_smoke.rs。
 // clean_test.go Clean-mode smokes: the cleanAll wipe and the targeted per-tag
 // clean. Coverage mirrors clean_all_smoke.rs and clean_mode_smoke.rs of the

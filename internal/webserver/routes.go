@@ -1,7 +1,7 @@
-// routes.go 15 个 API 端点注册与处理器，行为对齐 apps/cli/src/web.rs
+// routes.go 15 个 API 端点注册与处理器，行为对齐 rust_archive/apps-cli/src/web.rs
 // L91-434 的路由表；使用 Go 1.22 方法路由（"POST /api/save-raw"）。
 // Registration and handlers for the 15 API endpoints, aligned with the
-// routing table of apps/cli/src/web.rs L91-434, using Go 1.22 method
+// routing table of rust_archive/apps-cli/src/web.rs L91-434, using Go 1.22 method
 // patterns ("POST /api/save-raw").
 package webserver
 

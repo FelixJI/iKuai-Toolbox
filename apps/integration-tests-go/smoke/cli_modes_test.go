@@ -1,8 +1,8 @@
 // cli_modes_test.go CLI 参数路径冒烟：非法参数分支、once 别名与 cronAft 启动。
-// 覆盖点对齐 apps/integration-tests/tests/cli_modes_smoke.rs。
+// 覆盖点对齐 rust_archive/apps-integration-tests/tests/cli_modes_smoke.rs。
 // cli_modes_test.go CLI parameter-path smoke: the invalid-argument branches,
 // the once alias, and the cronAft startup. Coverage mirrors
-// apps/integration-tests/tests/cli_modes_smoke.rs.
+// rust_archive/apps-integration-tests/tests/cli_modes_smoke.rs.
 package smoke
 
 import (

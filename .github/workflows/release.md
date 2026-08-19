@@ -5,8 +5,8 @@
 ## 1. 触发方式
 
 - `.github/workflows/release.yml` 仅支持 `tag push` 和 `workflow_dispatch`
-- `.github/workflows/trigger-release.yml` 只监听 `main` 上的版本相关文件变更，用于识别 `cargo release --execute` 产生的 release commit 并转发到 `release.yml`
 - 不包含 `schedule`，不会每日自动构建
+- 历史上用于转发 `cargo release --execute` release commit 的 `trigger-release.yml` 已随 Rust workspace 归档（`rust_archive/`）一并移除；Go 主线发布统一走 tag push 或手动 `workflow_dispatch`
 
 ### Tag 触发
 
@@ -16,21 +16,14 @@
   - `publish_release=true`
   - `push_docker=true`
 
-### Release Commit Push 触发
+### Main 普通提交
 
-- `release.yml` 本身不再监听 `main` 普通提交，避免误触发重型构建
-- `trigger-release.yml` 会在 `main` push 后检查两件事：
-  - `HEAD` 提交标题必须等于 `release.toml` 中的 `pre-release-commit-message`
-  - `HEAD` 必须同时指向 `ikuai-bypass-v*` canonical tag
-- 同时它只在 `Cargo.toml` / `Cargo.lock` / `release.toml` 等 release 相关文件发生变更时才会运行
-- 只有同时满足时，才会把 `release.yml` 以该 tag ref 再次 `workflow_dispatch`
-- 如果只是普通 `main` 提交，或者 release commit 还没有对应 canonical tag，则只会在 trigger workflow 内快速跳过
-- 这是为了兼容 `cargo release --execute` 把 release commit 与 tag 一起 push 的场景，同时避免普通提交直接跑发布流水线
+- `release.yml` 不监听 `main` 普通提交，避免误触发重型构建
 
 ### 去重规则
 
 - `release.yml` 的并发组按 `ref + build_mode + build_target` 去重
-- 当 tag push 和 trigger-dispatch 同时命中同一个 canonical tag 时，后来的 run 会取消前一个 run，避免重复发布
+- 同一 canonical tag 的重复触发只保留最后一个 run，避免重复发布
 
 ### 手动触发
 
@@ -67,7 +60,7 @@
 规则如下：
 
 - `workflow_dispatch` 且 `trigger_mode=manual`：GitHub Release 一律标记为 `prerelease`
-- tag push，或由 `trigger-release.yml` 以 `trigger_mode=tag` 转发的执行：按 tag 名关键字判断是否为 `prerelease`
+- tag push：按 tag 名关键字判断是否为 `prerelease`
 - 命中上述关键字：GitHub Release 标记为 `prerelease`
 - 未命中上述关键字：GitHub Release 视为正式版本
 
@@ -280,7 +273,7 @@ GitHub Actions 内部 artifact 名仅用于 job 间传递：
 - ipkg 的最终文件名按架构固定，例如 `ikuai-bypass-x86_64.ipkg`、`ikuai-bypass-aarch64.ipkg`，不包含版本号
 - 仓库内只保留 `manifest.template.json` 模板，最终 `manifest.json` 会在打包 staging 目录中渲染，避免 CI 或本地脚本原地改写源码树
 - 渲染后的 `manifest.json` 版本仍会对 semver 预发布后缀做归一化，例如 `4.4.100-alpha9.2` 会写成 `4.4.100`
-- 如果 workflow 的发布版本号不是 semver（例如 `manual-build-*` / `manual-release-*`），会回退读取 `apps/cli/Cargo.toml` 的版本并继续归一化，确保最终 `manifest.json` 始终是 `X.Y.Z`
+- 如果 workflow 的发布版本号不是 semver（例如 `manual-build-*` / `manual-release-*`），会回退读取 `internal/app/diagnostics.go` 中 `CoreVersion` 常量的版本并继续归一化，确保最终 `manifest.json` 始终是 `X.Y.Z`
 
 实现位置：
 

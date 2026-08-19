@@ -1,4 +1,4 @@
-// router.go 默认网关探测，行为对齐 crates/core/src/router.rs：
+// router.go 默认网关探测，行为对齐 rust_archive/crates/core/src/router.rs：
 // 仅 Linux 读取 /proc/net/route，取 dest=00000000 且 flags 含网关位（0x2）
 // 的行，第三列小端十六进制还原为点分 IPv4。
 // Default-gateway detection aligned with router.rs: Linux only, reading

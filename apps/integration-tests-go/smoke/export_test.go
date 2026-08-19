@@ -1,7 +1,7 @@
 // export_stream_domain_test.go 域名规则导出冒烟。
-// 覆盖点对齐 apps/integration-tests/tests/export_stream_domain_smoke.rs。
+// 覆盖点对齐 rust_archive/apps-integration-tests/tests/export_stream_domain_smoke.rs。
 // export_stream_domain_test.go Stream-domain export smoke. Coverage mirrors
-// apps/integration-tests/tests/export_stream_domain_smoke.rs.
+// rust_archive/apps-integration-tests/tests/export_stream_domain_smoke.rs.
 package smoke
 
 import (

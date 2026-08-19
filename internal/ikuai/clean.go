@@ -1,4 +1,4 @@
-// clean.go 受管规则识别与清理标签匹配，行为对齐 crates/core/src/ikuai/clean.rs。
+// clean.go 受管规则识别与清理标签匹配，行为对齐 rust_archive/crates/core/src/ikuai/clean.rs。
 // Managed-rule detection and clean-tag matching, aligned with clean.rs.
 package ikuai
 

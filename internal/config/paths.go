@@ -1,8 +1,8 @@
 // paths.go 默认配置路径解析 / default config path resolution
-// 行为规格对齐 crates/core/src/paths.rs：
+// 行为规格对齐 rust_archive/crates/core/src/paths.rs：
 // windows→Roaming AppData；macos→~/Library/Application Support；
 // linux/其他 unix→~/.config；android 与未知环境→./config.yml。
-// Behavioral spec mirrors crates/core/src/paths.rs.
+// Behavioral spec mirrors rust_archive/crates/core/src/paths.rs.
 package config
 
 import (

@@ -1,7 +1,7 @@
 // save.go 配置安全写盘 / secure config writing
-// 行为规格对齐 crates/core/src/config.rs L388-466：
+// 行为规格对齐 rust_archive/crates/core/src/config.rs L388-466：
 // SaveToPath / validate_and_save_raw_yaml / write_config_file / validate_save_path。
-// Behavioral spec mirrors crates/core/src/config.rs L388-466.
+// Behavioral spec mirrors rust_archive/crates/core/src/config.rs L388-466.
 package config
 
 import (

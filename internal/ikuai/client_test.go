@@ -1,5 +1,5 @@
-// client_test.go 爱快 API 客户端测试（httptest 假爱快），行为对齐 crates/core/src/ikuai/types.rs L142-239。
-// iKuai API client tests against an httptest fake, aligned with crates/core/src/ikuai/types.rs L142-239.
+// client_test.go 爱快 API 客户端测试（httptest 假爱快），行为对齐 rust_archive/crates/core/src/ikuai/types.rs L142-239。
+// iKuai API client tests against an httptest fake, aligned with rust_archive/crates/core/src/ikuai/types.rs L142-239.
 package ikuai
 
 import (

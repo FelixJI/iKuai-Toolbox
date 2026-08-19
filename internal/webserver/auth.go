@@ -1,7 +1,7 @@
-// auth.go 动态 BasicAuth 中间件，行为对齐 apps/cli/src/web.rs L451-519：
+// auth.go 动态 BasicAuth 中间件，行为对齐 rust_archive/apps-cli/src/web.rs L451-519：
 // 每请求重读当前配置的 webui.user/pass；user 空放行；否则常数时间比较，
 // 失败 401 + WWW-Authenticate + "Unauthorized"。
-// Dynamic BasicAuth middleware aligned with apps/cli/src/web.rs L451-519:
+// Dynamic BasicAuth middleware aligned with rust_archive/apps-cli/src/web.rs L451-519:
 // every request re-reads webui.user/pass from the live config; a blank user
 // passes through; otherwise a constant-time comparison guards entry and any
 // failure answers 401 + WWW-Authenticate + "Unauthorized".
