@@ -193,3 +193,145 @@ stream-ipport:
 			streamIpports[0].SrcAddrInv, streamIpports[0].DstAddrInv)
 	}
 }
+
+// 覆盖点：
+// 1) 多分片创建（isp/domain/ipv4/ipv6）；
+// 2) 第二次同步缩容后，首分片原地更新且冗余分片被删除；
+// 3) 同时覆盖注释/空行/非法项过滤后的分片逻辑。
+// Coverage:
+// 1) Multi-chunk creation across isp/domain/ipv4/ipv6.
+// 2) Shrink sync keeps the first chunk in place and deletes redundant chunks.
+// 3) Exercises chunking after filtering comments/blank/invalid lines.
+func TestChunkedSyncShrinkCleanupSmoke(t *testing.T) {
+	h := startHarness(t)
+
+	h.fixture.setText(t, "/chunk/isp.txt",
+		"10.0.0.0/24\n10.0.1.0/24 # keep\n\n2001:db8::1\n10.0.2.0/24\n10.0.3.0/24\n# comment\n10.0.4.0/24\n")
+	h.fixture.setText(t, "/chunk/domain.txt",
+		"alpha.example\nbeta.example\n_skip.example\n\ngamma.example # trailing\ndelta.example\nepsilon.example\n")
+	h.fixture.setText(t, "/chunk/ipv4.txt",
+		"1.1.1.1\n1.1.1.2\n\n2001:db8::2\n1.1.1.3\n1.1.1.4\n1.1.1.5\n")
+	h.fixture.setText(t, "/chunk/ipv6.txt",
+		"2001:db8::1\n2001:db8::2\n1.1.1.1\n2001:db8::3\n\n2001:db8::4\n2001:db8::5\n")
+
+	extra := fmt.Sprintf(`custom-isp:
+  - tag: ChunkIsp
+    url: %q
+stream-domain:
+  - interface: wan2
+    src-addr: 192.168.50.10-192.168.50.20
+    src-addr-opt-ipgroup: ""
+    url: %q
+    tag: ChunkDom
+ip-group:
+  - tag: Chunk4
+    url: %q
+ipv6-group:
+  - tag: Chunk6
+    url: %q
+MaxNumberOfOneRecords:
+  Isp: 2
+  Ipv4: 2
+  Ipv6: 2
+  Domain: 2
+`,
+		h.fixture.url("/chunk/isp.txt"),
+		h.fixture.url("/chunk/domain.txt"),
+		h.fixture.url("/chunk/ipv4.txt"),
+		h.fixture.url("/chunk/ipv6.txt"),
+	)
+	cfgPath := h.writeConfig("chunked-sync.yml", renderTestConfig(h.sim.URL(), harnessUser, harnessPass, extra))
+
+	h.runCLISuccess("multi-chunk sync", "-c", cfgPath, "-r", "once", "-m", "iip")
+
+	api := h.loginAPI()
+
+	customIsp := showCustomIsp(t, api, "ChunkIsp")
+	if len(customIsp) != 3 {
+		t.Fatalf("expected three custom ISP chunks, got %d", len(customIsp))
+	}
+	if got, want := csvItems(customIsp[0].Ipgroup), []string{"10.0.0.0/24", "10.0.1.0/24"}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("first custom ISP chunk: got %v, want %v", got, want)
+	}
+	customIspFirstID := customIsp[0].ID
+
+	streamDomains := showStreamDomain(t, api, "ChunkDom")
+	if len(streamDomains) != 3 {
+		t.Fatalf("expected three stream-domain chunks, got %d", len(streamDomains))
+	}
+	if got, want := csvItems(streamDomains[0].Domain), []string{"alpha.example", "beta.example"}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("first stream-domain chunk: got %v, want %v", got, want)
+	}
+	streamDomainFirstID := streamDomains[0].ID
+
+	ipv4Groups := showIpGroup(t, api, "Chunk4")
+	if len(ipv4Groups) != 3 {
+		t.Fatalf("expected three IPv4 group chunks, got %d", len(ipv4Groups))
+	}
+	if got, want := csvItems(ipv4Groups[0].AddrPool), []string{"1.1.1.1", "1.1.1.2"}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("first IPv4 chunk: got %v, want %v", got, want)
+	}
+	ipv4FirstID := ipv4Groups[0].ID
+
+	ipv6Groups := showIpv6Group(t, api, "Chunk6")
+	if len(ipv6Groups) != 3 {
+		t.Fatalf("expected three IPv6 group chunks, got %d", len(ipv6Groups))
+	}
+	if got, want := csvItems(ipv6Groups[0].AddrPool), []string{"2001:db8::1", "2001:db8::2"}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("first IPv6 chunk: got %v, want %v", got, want)
+	}
+	ipv6FirstID := ipv6Groups[0].ID
+
+	h.fixture.setText(t, "/chunk/isp.txt", "10.0.9.0/24\n10.0.9.1/24\n2001:db8::dead\n")
+	h.fixture.setText(t, "/chunk/domain.txt", "renew.example\nsteady.example\n_still_skip.example\n")
+	h.fixture.setText(t, "/chunk/ipv4.txt", "9.9.9.1\n9.9.9.2\n2001:db8::beef\n")
+	h.fixture.setText(t, "/chunk/ipv6.txt", "2001:db8:9::1\n2001:db8:9::2\n9.9.9.9\n")
+
+	h.runCLISuccess("shrink sync", "-c", cfgPath, "-r", "once", "-m", "iip")
+
+	api = h.loginAPI()
+
+	customIsp = showCustomIsp(t, api, "ChunkIsp")
+	if len(customIsp) != 1 {
+		t.Fatalf("extra custom ISP chunks should be deleted, got %d", len(customIsp))
+	}
+	if customIsp[0].ID != customIspFirstID {
+		t.Fatalf("first custom ISP chunk should update in place: before=%d after=%d", customIspFirstID, customIsp[0].ID)
+	}
+	if got, want := csvItems(customIsp[0].Ipgroup), []string{"10.0.9.0/24", "10.0.9.1/24"}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("custom ISP content after shrink: got %v, want %v", got, want)
+	}
+
+	streamDomains = showStreamDomain(t, api, "ChunkDom")
+	if len(streamDomains) != 1 {
+		t.Fatalf("extra stream-domain chunks should be deleted, got %d", len(streamDomains))
+	}
+	if streamDomains[0].ID != streamDomainFirstID {
+		t.Fatalf("first stream-domain chunk should update in place: before=%d after=%d", streamDomainFirstID, streamDomains[0].ID)
+	}
+	if got, want := csvItems(streamDomains[0].Domain), []string{"renew.example", "steady.example"}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("stream-domain content after shrink: got %v, want %v", got, want)
+	}
+
+	ipv4Groups = showIpGroup(t, api, "Chunk4")
+	if len(ipv4Groups) != 1 {
+		t.Fatalf("extra IPv4 chunks should be deleted, got %d", len(ipv4Groups))
+	}
+	if ipv4Groups[0].ID != ipv4FirstID {
+		t.Fatalf("first IPv4 chunk should update in place: before=%d after=%d", ipv4FirstID, ipv4Groups[0].ID)
+	}
+	if got, want := csvItems(ipv4Groups[0].AddrPool), []string{"9.9.9.1", "9.9.9.2"}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("IPv4 content after shrink: got %v, want %v", got, want)
+	}
+
+	ipv6Groups = showIpv6Group(t, api, "Chunk6")
+	if len(ipv6Groups) != 1 {
+		t.Fatalf("extra IPv6 chunks should be deleted, got %d", len(ipv6Groups))
+	}
+	if ipv6Groups[0].ID != ipv6FirstID {
+		t.Fatalf("first IPv6 chunk should update in place: before=%d after=%d", ipv6FirstID, ipv6Groups[0].ID)
+	}
+	if got, want := csvItems(ipv6Groups[0].AddrPool), []string{"2001:db8:9::1", "2001:db8:9::2"}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("IPv6 content after shrink: got %v, want %v", got, want)
+	}
+}
