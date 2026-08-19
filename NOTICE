@@ -1,0 +1,34 @@
+iKuai-Toolbox
+Copyright (C) 2026 FelixJI <https://github.com/FelixJI>
+
+This repository, iKuai-Toolbox, is a modified version of
+"ikuai-bypass" <https://github.com/joyanhui/ikuai-bypass>,
+Copyright (C) joyanhui and contributors.
+
+It was forked from joyanhui/ikuai-bypass (upstream revision 7f15a53,
+synced 2026-08-19) and renamed to "iKuai-Toolbox". The first modified
+release of this fork was prepared on 2026-08-19. The git history of
+this repository was re-initialized on 2026-08-19 as a single snapshot
+commit and does not carry the upstream commit history; the complete
+history of the original work remains available at the upstream
+repository <https://github.com/joyanhui/ikuai-bypass>.
+
+Original project attribution / 原项目致谢:
+  - joyanhui/ikuai-bypass <https://github.com/joyanhui/ikuai-bypass>
+    (which itself credits ztc1997/ikuai-bypass for the initial concept)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version. The complete license
+text is provided in the LICENSE file.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+Affero General Public License for more details.
+
+本项目（iKuai-Toolbox）是基于 joyanhui/ikuai-bypass 的修改版本，
+依据 AGPL-3.0 第 5(a) 条声明：本作品包含对原项目的修改。
+本仓库 git 历史已于 2026-08-19 重新初始化为单一快照提交，
+不含上游提交历史；上游完整历史见原项目仓库。
