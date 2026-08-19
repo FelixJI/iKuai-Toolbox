@@ -44,6 +44,30 @@ fn shell_crate_has_no_core_dependency() {
 }
 
 #[test]
+fn shell_lib_launches_sidecar_and_dynamic_window() {
+    let src = read_repo_file("src/lib.rs");
+    for marker in [
+        "ikuai-bypass-go",
+        "\"-c\"",
+        "\"-r\"",
+        "cronAft",
+        "/api/runtime/status",
+        "WINDOW_LABEL: &str = \"main\"",
+        "WebviewWindowBuilder",
+        "kill_sidecar",
+    ] {
+        assert!(
+            src.contains(marker),
+            "shell marker '{marker}' should be wired in src/lib.rs"
+        );
+    }
+    assert!(
+        !src.contains("ikb_core"),
+        "the shell must not reference ikb-core anymore"
+    );
+}
+
+#[test]
 fn tauri_config_file_exists() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = root.join("tauri.conf.json");
