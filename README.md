@@ -1,6 +1,6 @@
 # iKuai-Toolbox
 
-![iKuai](https://img.shields.io/badge/Router-iKuai-brightgreen) ![License](https://img.shields.io/badge/License-AGPL%203.0-blue.svg) ![Rust](https://img.shields.io/badge/Language-Rust-orange)
+![iKuai](https://img.shields.io/badge/Router-iKuai-brightgreen) ![License](https://img.shields.io/badge/License-AGPL%203.0-blue.svg) ![Go](https://img.shields.io/badge/Language-Go-blue)
 
 > **项目声明 / Fork Notice**：本仓库 **iKuai-Toolbox** 是 [joyanhui/ikuai-bypass](https://github.com/joyanhui/ikuai-bypass)（AGPL-3.0）的独立修改版本，自 2026-08 起由 [FelixJI](https://github.com/FelixJI) 维护并更名。依据 AGPL-3.0 第 5(a) 条，特此声明本作品包含对原项目的修改；完整版权与修改声明见 [NOTICE](NOTICE) 与 [LICENSE](LICENSE)。
 
@@ -38,7 +38,7 @@
 ## 交流与反馈
 
 - Bug 反馈与功能请求：[GitHub Issues](https://github.com/FelixJI/iKuai-Toolbox/issues)
-- 欢迎 PR，Rust/TS 代码请须严格遵循零 Clone、零隐式 Panic 及零 Any 原则。
+- 欢迎 PR，Go/TS 代码请严格遵循错误 `%w` 包装、生产代码禁止 panic 及前端零 Any 原则。
 
 ## 上游项目与致谢
 

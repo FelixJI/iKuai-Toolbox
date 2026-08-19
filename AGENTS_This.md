@@ -3,8 +3,9 @@
 本文件只放项目特有内容，通用规范见同目录 `AGENTS.md`。
 
 ## 项目定位
-- iKuai-Toolbox（基于 joyanhui/ikuai-bypass 的 AGPL-3.0 修改版，版权声明见 `NOTICE`）的 Rust 主线版本：仓库根目录即当前可交付版本，旧的 Go/Fyne 代码、文档和旧 CI 已归档到 `golang_archive/`。
-- 除非用户明确要求，不要把新功能继续做进 `golang_archive/` 归档目录。
+- iKuai-Toolbox（基于 joyanhui/ikuai-bypass 的 AGPL-3.0 修改版，版权声明见 `NOTICE`）的 Go 主线版本：仓库根目录即当前可交付版本；Rust 实现已归档到 `rust_archive/`（冻结点 tag `rust-final`），更早的 Go/Fyne 代码归档在 `golang_archive/`。
+- 技术栈：Go 1.25（标准库 `net/http` + `robfig/cron/v3` + `gopkg.in/yaml.v3`，CGO_ENABLED=0 静态交叉编译），CLI 与 WebUI 同进程；`apps/gui/` 为 Tauri v2 壳（仓库内唯一保留的 Rust 代码），业务逻辑全部由 Go sidecar（`cmd/ikuai-bypass` 交叉编译产物）承载。
+- 除非用户明确要求，不要把新功能继续做进 `rust_archive/` 或 `golang_archive/` 归档目录。
 
 ## 文档事实来源
 - `docs/`：Jekyll + GitHub Pages 文档站，部署于 `https://joyanhui.github.io/ikuai-bypass/`（子目录）；本地预览执行 `bash script/dev.sh docs:dev`。
@@ -13,22 +14,23 @@
 - docs 内部链接必须使用标准 Markdown 相对路径 `](file.md)` 或 `](file.md#锚点)`，禁止 `](/根路径/)` 和 `]({{ site.baseurl }}/path/)` 等 Liquid 写法；`jekyll-relative-links` 插件构建时自动将 `file.md` 转 `/ikuai-bypass/file/`，同时 Obsidian 原生支持 `.md` 相对路径跳转和图谱。
 
 ## 开发环境
-- 进入仓库目录后执行 `nix develop`（或 direnv），获得 Rust/前端/Jekyll 开发环境。
+- 进入仓库目录后执行 `nix develop`（或 direnv），获得 Go/前端/Tauri(Rust)/Jekyll 开发环境。
 
 ## 仓库结构
 ```text
 iKuai-Toolbox/
-├── crates/core/             # 核心业务库（配置、iKuai API、更新流程、运行时、日志）
-├── apps/cli/                # CLI + Web 模式（完整功能本体）
-├── apps/gui/                # Tauri v2 后端
-├── apps/integration-tests/  # 集成测试模块（含 ikuai_simulator/ iKuai 真机模拟器，CI 默认使用）
-├── frontends/app/           # Bun + Astro 单页前端（WebUI 与 Tauri 共用）
-├── config.yml               # 示例配置
-├── api-docs/                # 爱快 4.x API 抓包记录
-├── docs/                    # Jekyll + GitHub Pages 文档站
-├── dev-docs/                # 专题开发说明
-├── packaging/               # 打包相关
-└── golang_archive/          # Go 版本归档
+├── cmd/ikuai-bypass/         # CLI 入口（运行模式分发、信号处理、退出码）
+├── internal/                 # 核心业务库（config/ikuai/update/runtime/webserver/logger/netx/app）
+├── apps/gui/                 # Tauri v2 GUI 壳（独立 crate，Go sidecar 承载业务）
+├── apps/integration-tests-go/ # Go 集成测试（simulator/ 内置 iKuai 模拟器，smoke/ 黑盒用例）
+├── frontends/app/            # Bun + Astro 单页前端（WebUI 与 Tauri 共用）
+├── config.yml                # 示例配置
+├── api-docs/                 # 爱快 4.x API 抓包记录
+├── docs/                     # Jekyll + GitHub Pages 文档站
+├── dev-docs/                 # 专题开发说明
+├── packaging/                # 打包相关
+├── rust_archive/             # Rust 版本归档（tag rust-final）
+└── golang_archive/           # 旧 Go/Fyne 版本归档
 ```
 
 ## 前端技术栈（修正通用 AGENTS.md 的前端规范）
@@ -48,7 +50,7 @@ iKuai-Toolbox/
 - 本项目无数据库；配置以 `config.yml`（示例）为事实来源，前端配置编辑唯一真来源是 `rawYaml`。
 - 可视化编辑必须通过 YAML AST 定点修改 `rawYaml`（`frontends/app/src/lib/yaml_ast.ts`）；文本编辑直接编辑 `rawYaml`。
 - 后端保存必须先解析 YAML 校验，再按 `rawYaml` 原文写盘。
-- 配置一致性：新增或修改配置项时，至少同步更新 `config.yml`、`crates/core/src/config.rs`、`frontends/app/src/lib/config_model.ts`、`frontends/app` 相关表单 / YAML AST / 保存逻辑。
+- 配置一致性：新增或修改配置项时，至少同步更新 `config.yml`、`internal/config/config.go`、`frontends/app/src/lib/config_model.ts`、`frontends/app` 相关表单 / YAML AST / 保存逻辑。
 - 统一使用 `tag` 字段作为用户标识，不再新增 `name` 字段语义。
 - 配置覆写必须做 YAML 后缀、软链接和写入安全校验。
 
@@ -76,7 +78,8 @@ iKuai-Toolbox/
 ## 架构约束
 - CLI 是完整功能本体，GUI/WebUI 只是可视化入口。
 - WebUI 与 Tauri 共用 `frontends/app/` 这一套 Astro 单页；Tauri IPC 语义需要和 Web API 对齐（`frontends/app/src/lib/bridge.ts`）。
-- 核心逻辑避免无意义 clone、unwrap 和隐式 panic（通用 AGENTS.md 的 Rust 规范已覆盖更严格约束）。
+- Go 代码约束：错误一律用 `fmt.Errorf("...: %w", err)` 包装透传，不得吞错或裸返回；生产代码禁止 `panic`；通用 AGENTS.md 的 Rust 规范（零 clone/unwrap、tokio 并发等）对本项目不再适用。
+- 更新流程严禁并发：所有规则块更新严格顺序执行，WebUI/cron 触发的更新入口必须防重入。
 
 ## 注释与文案规范（修正通用 AGENTS.md）
 - 本项目明确要求代码注释使用双语文本（中文 + English），优先解释为什么存在，再解释做了什么；这覆盖通用 AGENTS.md 的"除非明确要求，永远不要新增注释"。
@@ -84,11 +87,10 @@ iKuai-Toolbox/
 - 测试代码是项目明确要求（见集成测试约定与前端测试），不受通用 AGENTS.md"不得新增测试代码"限制。
 
 ## 集成测试约定
-- GitHub CI 默认使用 `apps/integration-tests/src/ikuai_simulator/` 里的 iKuai 模拟器，不再依赖在线 KVM。
-- 本地集成测试默认优先使用 KVM/QEMU 真机链路，用于验证和模拟器的行为差异。
-- 本地无 `qemu-system-x86_64` / `qemu-img` / `/dev/kvm` 时，允许通过 `IKB_TEST_IKUAI_URL` 连接开发者显式指定的爱快地址继续跑集成测试。
-- 本地 KVM 默认镜像优先使用仓库内 `.github/smoke-test-ikuai.qcow2.7z` 解压得到的 `.github/smoke-test-ikuai.qcow2`，除非开发者通过环境变量覆盖。
-- `webui` 浏览器 smoke 本地验证必须基于 `nix develop`，先预编译 `ikb-webui-fixture`，再以二进制路径运行 `apps/integration-tests/run-webui-browser-smoke.sh`。
+- 集成测试位于 `apps/integration-tests-go/`：`simulator/` 为内置 iKuai 模拟器（真实 HTTP 行为），`smoke/` 为黑盒用例，harness 自行 `go build` 被测 CLI；不依赖在线 KVM。
+- 单测与 smoke 统一命令：`go test ./...`；根包 go:embed 要求先构建 `frontends/app/dist`（`cd frontends/app && bun install && bun run build`）。
+- pre-commit 钩子（`.github/githooks/pre-commit`）本地运行 `go test ./apps/integration-tests-go/... -count=1`。
+- `webui` 浏览器 smoke 位于 `frontends/app/tests/e2e/`（playwright，`bun run test:e2e`），通过 `IKB_WEBUI_BASE_URL` / `IKB_WEBUI_USER` / `IKB_WEBUI_PASS` 等环境变量连接自备的运行中 WebUI。
 
 ## 安装脚本测试
 - `docs/install.sh` 一键安装脚本 CI 测试覆盖 Ubuntu (systemd) 与 OpenWrt (KVM QEMU) 两种环境，验证 OS/arch 检测、版本获取、下载安装、服务文件注册、enable/start/stop/disable 生命周期、保留/删除配置卸载以及进程残留清理。
