@@ -295,3 +295,91 @@ func TestFetchRemoteConfig(t *testing.T) {
 		t.Errorf("http err = %v, want HTTP 404 Not Found", err)
 	}
 }
+
+// TestCleanOrder 清理顺序固定为 custom_isp→stream_domain→ip_group→ipv6_group→stream_ipport
+// （clean.rs L39-68）；ip_group 与 ipv6_group 都走爱快 route_object 功能名。
+// TestCleanOrder pins the fixed clean order custom_isp→stream_domain→ip_group→
+// ipv6_group→stream_ipport (clean.rs L39-68); ip_group and ipv6_group both hit
+// the iKuai route_object func.
+func TestCleanOrder(t *testing.T) {
+	srv, callsPtr := newFakeIkuai(t)
+	cfg := &config.Config{}
+
+	err := RunClean(cfg, srv.URL+",admin,pass", "mytag")
+	if err != nil {
+		t.Fatalf("RunClean: %v", err)
+	}
+
+	want := []string{
+		"custom_isp",
+		"stream_domain",
+		"route_object",
+		"route_object",
+		"stream_ipport",
+	}
+	if len(*callsPtr) != len(want) {
+		t.Fatalf("calls = %v, want %v", *callsPtr, want)
+	}
+	for i, fn := range want {
+		if (*callsPtr)[i] != fn {
+			t.Fatalf("calls = %v, want %v", *callsPtr, want)
+		}
+	}
+}
+
+// TestCleanRequiresTag 空/纯空白 clean_tag 必须报 "Clean mode requires clean_tag"
+// （clean.rs L8/L20-23），且不得发起任何登录或 API 调用。
+// TestCleanRequiresTag asserts a blank clean_tag yields "Clean mode requires
+// clean_tag" (clean.rs L8/L20-23) without any login or API call.
+func TestCleanRequiresTag(t *testing.T) {
+	srv, callsPtr := newFakeIkuai(t)
+	for _, tag := range []string{"", "   "} {
+		err := RunClean(&config.Config{}, srv.URL+",admin,pass", tag)
+		if err == nil {
+			t.Fatalf("RunClean(tag=%q) should fail", tag)
+		}
+		if err.Error() != "Clean mode requires clean_tag" {
+			t.Errorf("err = %q, want Clean mode requires clean_tag", err)
+		}
+	}
+	if len(*callsPtr) != 0 {
+		t.Errorf("no API calls expected, got %v", *callsPtr)
+	}
+}
+
+// TestCleanLoginError 登录失败映射为 clean step login failed（clean.rs L29-37）。
+// TestCleanLoginError maps a login failure to "clean step login failed" (clean.rs L29-37).
+func TestCleanLoginError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"code":10000,"message":"bad credentials"}`)
+	}))
+	defer srv.Close()
+
+	err := RunClean(&config.Config{}, srv.URL+",admin,pass", "mytag")
+	if err == nil {
+		t.Fatal("RunClean should fail on login error")
+	}
+	want := "clean step login failed: api error: bad credentials"
+	if err.Error() != want {
+		t.Errorf("err = %q, want %q", err, want)
+	}
+}
+
+// TestCleanBadCliLogin CLI 登录三元组格式错误映射为 login params error（clean.rs L11）。
+// TestCleanBadCliLogin maps a malformed CLI login triple to the login-params
+// error (clean.rs L11).
+func TestCleanBadCliLogin(t *testing.T) {
+	_, callsPtr := newFakeIkuai(t)
+	err := RunClean(&config.Config{}, "only-two-parts", "mytag")
+	if err == nil {
+		t.Fatal("RunClean should fail on malformed cli login")
+	}
+	want := "login params error: command line parameter format error"
+	if err.Error() != want {
+		t.Errorf("err = %q, want %q", err, want)
+	}
+	if len(*callsPtr) != 0 {
+		t.Errorf("no API calls expected, got %v", *callsPtr)
+	}
+}
