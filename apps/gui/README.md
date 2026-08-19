@@ -16,7 +16,8 @@
 
 ## 运行行为
 
-- 启动时选择空闲端口（优先沿用配置中已有 `webui.port`，被占用则从 19091 起扫描），把 `webui.enable: true` 与端口以保留注释的行级方式写回配置文件，再以 `ikuai-bypass-go -c <配置> -r cronAft` 启动 sidecar。
+- 首次运行（配置缺失或为空）以内嵌模板（仓库根 `config.yml`，编译期 include）作种子，并清空模板中的 `cron` 与 `webui.user`/`webui.pass`：避免一启动就自动定时，也避免首启弹出 BasicAuth 登录框；模板自带的 `ikuai-url` 占位地址是必要的——Windows 上网关探测恒失败，空 `ikuai-url` 会让 `-r cronAft` 直接退出。
+- 启动时选择空闲端口（优先沿用配置中已有 `webui.port`，被占用则从 19091 起扫描），把 `webui.enable: true` 与端口以保留注释的行级方式写回配置文件（已有配置不动 `cron` 与认证字段），再以 `ikuai-bypass-go -c <配置> -r cronAft` 启动 sidecar。
 - 就绪探测：轮询 `GET /api/runtime/status`（15 秒超时，任何 HTTP 状态码即视为就绪，BasicAuth 开启时首轮为 401 也算就绪），成功后创建窗口。
 - 配置文件启用了 `webui.user` 时窗口会先出现系统的 BasicAuth 登录框（凭据即配置中的 webui 账号），WebView2 会在会话内缓存凭据；不需要登录框可在配置中留空 `webui.user`。
 - 退出（窗口关闭或应用退出事件）时杀掉 sidecar 子进程；sidecar stdout/stderr 转发进 tauri-plugin-log。

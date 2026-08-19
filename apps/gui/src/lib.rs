@@ -28,6 +28,9 @@ const PROBE_CONNECT_TIMEOUT: Duration = Duration::from_millis(800);
 const PORT_SCAN_START: u16 = 19091;
 const PORT_SCAN_END: u16 = 19110;
 const APP_DIR_NAME: &str = "ikuai-bypass";
+// 首次运行种子：仓库根 config.yml 模板（唯一真来源）。
+// First-run seed: the repo-root config.yml template (single source of truth).
+const EMBEDDED_TEMPLATE: &str = include_str!("../../../config.yml");
 
 // sidecar 子进程句柄与存活标记，退出事件据此清理。
 // Sidecar child handle plus liveness flag, consumed by the exit cleanup.
@@ -277,6 +280,53 @@ fn inject_webui(raw: &str, port: u16) -> Result<String, String> {
     }
 }
 
+// 种子净化：清空模板里的 cron 与 webui.user/pass——首次运行不自动定时、不出登录框。
+// Seed sanitation: blank cron and webui.user/pass from the template, so the
+// first run never auto-schedules and never shows a login dialog.
+fn sanitize_seed(raw: &str) -> String {
+    let newline = if raw.contains("\r\n") { "\r\n" } else { "\n" };
+    let mut lines: Vec<String> = raw
+        .lines()
+        .map(|l| l.trim_end_matches('\r').to_string())
+        .collect();
+    if let Some(idx) = lines
+        .iter()
+        .position(|l| top_level_key(l).is_some_and(|(k, _)| k == "cron"))
+    {
+        lines[idx] = replace_scalar_value(&lines[idx], "\"\"");
+    }
+    let webui_idx = lines
+        .iter()
+        .position(|l| top_level_key(l).is_some_and(|(k, _)| k == "webui"));
+    if let Some(webui_idx) = webui_idx {
+        for key in ["user", "pass"] {
+            let mut target: Option<usize> = None;
+            let mut i = webui_idx + 1;
+            while i < lines.len() {
+                let line = &lines[i];
+                if !line.trim().is_empty() && !line.starts_with([' ', '\t']) {
+                    break;
+                }
+                if let Some((k, _)) = child_key(line)
+                    && k == key
+                {
+                    target = Some(i);
+                    break;
+                }
+                i += 1;
+            }
+            if let Some(t) = target {
+                lines[t] = replace_scalar_value(&lines[t], "\"\"");
+            }
+        }
+    }
+    let mut out = lines.join(newline);
+    if raw.ends_with('\n') {
+        out.push_str(newline);
+    }
+    out
+}
+
 fn spawn_sidecar<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     config_path: &std::path::Path,
@@ -445,7 +495,18 @@ fn launch_desktop_shell<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
     let config_path = resolve_gui_config_path(app);
     ensure_config_parent_dir(&config_path);
 
-    let raw = std::fs::read_to_string(&config_path).unwrap_or_default();
+    // 首次运行（缺失/空配置）以内嵌模板为种子：Windows 上 GetGatewayV4 恒失败，
+    // 空 ikuai-url 会让 cronAft 直接退出，模板自带的占位地址保证服务能起。
+    // First run (missing/empty config) seeds from the embedded template: on
+    // Windows GetGatewayV4 always fails and a blank ikuai-url makes cronAft
+    // exit immediately; the template's placeholder URL keeps the server up.
+    let existing = std::fs::read_to_string(&config_path).unwrap_or_default();
+    let first_run = existing.trim().is_empty();
+    let raw = if first_run {
+        sanitize_seed(EMBEDDED_TEMPLATE)
+    } else {
+        existing
+    };
     let (preferred, enabled) = parse_webui(&raw).unwrap_or((None, false));
     let Some(port) = choose_port(preferred) else {
         let message = format!(
@@ -455,8 +516,13 @@ fn launch_desktop_shell<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
         open_error_window(app, &message);
         return;
     };
+    log::info!(
+        target: "shell",
+        "config: {} port: {port} first_run: {first_run}",
+        config_path.display()
+    );
 
-    if preferred != Some(port) || !enabled {
+    if first_run || preferred != Some(port) || !enabled {
         match inject_webui(&raw, port) {
             Ok(updated) => {
                 if let Err(e) = std::fs::write(&config_path, &updated) {
