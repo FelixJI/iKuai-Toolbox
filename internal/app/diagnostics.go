@@ -126,11 +126,10 @@ const githubProxyProbeURL = "https://raw.githubusercontent.com/FelixJI/iKuai-Too
 const ghProxyProbeUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 // CoreVersion 报告中的 ikb-core 版本行；Rust 侧取 env!("CARGO_PKG_VERSION")
-// （crates/core 4.4.109），Go 主线版本对齐 cmd/ikuai-bypass 占位值，
-// Task 9 CLI 落地时统一为单一来源。
+// （crates/core 4.4.109）。Go 侧唯一的版本常量来源（cmd 不再单独定义）。
 // CoreVersion feeds the ikb-core report line; the Rust side reads
-// env!("CARGO_PKG_VERSION") (crates/core 4.4.109) while the Go line matches the
-// cmd/ikuai-bypass placeholder, to be unified into one source in Task 9.
+// env!("CARGO_PKG_VERSION") (crates/core 4.4.109). On the Go side this is the
+// single version constant (cmd defines no separate one).
 const CoreVersion = "5.0.0-go.1"
 
 // TestIkuaiLogin 登录连通性测试（diagnostics.rs L32-68）：URL 归一化与用户名
