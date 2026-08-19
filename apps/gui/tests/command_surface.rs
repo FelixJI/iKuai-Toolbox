@@ -10,29 +10,37 @@ fn read_repo_file(rel: &str) -> String {
 }
 
 #[test]
-fn tauri_invoke_handler_includes_runtime_commands() {
-    let src = read_repo_file("src/lib.rs");
-    for cmd in [
-        "runtime_status",
-        "runtime_run_once",
-        "runtime_cron_start",
-        "runtime_cron_stop",
-        "runtime_stop",
-        "runtime_clean",
-        "runtime_tail_logs",
-        "get_config_meta",
-        "get_embedded_default_config",
-        "save_raw_yaml",
-        "fetch_remote_config",
-        "fetch_github_releases",
-        "diagnostics_report",
-    ] {
-        assert!(
-            src.contains(cmd),
-            "tauri command '{}' should be wired in invoke handler",
-            cmd
-        );
-    }
+fn tauri_config_declares_go_sidecar_bundle() {
+    let conf = read_repo_file("tauri.conf.json");
+    assert!(
+        conf.contains("\"externalBin\""),
+        "bundle.externalBin must declare the Go sidecar binary"
+    );
+    assert!(
+        conf.contains("binaries/ikuai-bypass-go"),
+        "externalBin entry must point at binaries/ikuai-bypass-go"
+    );
+    assert!(
+        !conf.contains("\"withGlobalTauri\": true"),
+        "withGlobalTauri must stay off: the window loads the Go server over HTTP and a __TAURI__ global would hijack bridge.ts into broken IPC mode"
+    );
+    assert!(
+        !conf.contains("\"url\""),
+        "windows must be created at runtime with the sidecar port, not a static url"
+    );
+}
+
+#[test]
+fn shell_crate_has_no_core_dependency() {
+    let manifest = read_repo_file("Cargo.toml");
+    assert!(
+        !manifest.contains("ikb-core"),
+        "the Tauri shell must not depend on ikb-core; business logic lives in the Go sidecar"
+    );
+    assert!(
+        manifest.contains("tauri-plugin-shell"),
+        "tauri-plugin-shell is required to spawn the Go sidecar"
+    );
 }
 
 #[test]

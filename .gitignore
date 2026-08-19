@@ -51,3 +51,5 @@ CLAUDE.md
 **/.obsidian/workspace.json
 /result
 *.exe
+
+apps/gui/binaries/
