@@ -961,3 +961,117 @@ func TestLoggerEmitsTsAndModule(t *testing.T) {
 		t.Errorf("ts = %q, want local timestamp format", r.Ts)
 	}
 }
+
+// cliLoginFor 基于假爱快地址构造 CLI 登录串。
+// cliLoginFor builds the CLI login triple against the fake server.
+func cliLoginFor(f *fakeIkuai) string {
+	return f.srv.URL + ",admin,secret"
+}
+
+// mixedCfg 构造 ipgroup + custom-isp + ipv6 三类条目齐全的配置（v4/v6 各用
+// 匹配的源，避免行清洗清空）。
+// mixedCfg builds a config with ip-group, custom-isp and ipv6 entries together
+// (v4/v6 each get a matching source so line filtering keeps data).
+func mixedCfg(t *testing.T) *config.Config {
+	t.Helper()
+	src4 := newSourceServer(t, http.StatusOK, "1.1.1.1\n")
+	src6 := newSourceServer(t, http.StatusOK, "fd00::1\n")
+	cfg := testCfg()
+	cfg.IpGroup = []config.IpGroupItem{{Tag: "v4tag", URL: src4.URL}}
+	cfg.CustomIsp = []config.CustomIspItem{{Tag: "isptag", URL: src4.URL}}
+	cfg.Ipv6Group = []config.Ipv6GroupItem{{Tag: "v6tag", URL: src6.URL}}
+	return cfg
+}
+
+// TestModuleOrder 严格顺序分发（update.rs L76-122）：先 Login 再串行执行；
+// ii = ipgroup→ispdomain，ip = ipgroup→ipv6group，iip = ipgroup→ispdomain→ipv6group。
+// 断言整个调用序列（普通 for 循环天然顺序，禁止 goroutine 并发）。
+// TestModuleOrder covers strict sequential dispatch (update.rs L76-122): login
+// first, then serial execution; ii = ipgroup→ispdomain, ip = ipgroup→ipv6group,
+// iip = ipgroup→ispdomain→ipv6group. The whole call sequence is asserted
+// (a plain for loop is naturally sequential; goroutines are forbidden).
+func TestModuleOrder(t *testing.T) {
+	t.Run("ii", func(t *testing.T) {
+		f := newFakeIkuai(t, map[string][]map[string]any{})
+		var sink recSink
+		if err := RunUpdateByModule(mixedCfg(t), cliLoginFor(f), "ii", &UpdateOptions{}, sink.sink); err != nil {
+			t.Fatalf("RunUpdateByModule(ii): %v", err)
+		}
+		want := []string{
+			"login",
+			"route_object.show", "route_object.add",
+			"custom_isp.show", "custom_isp.add",
+		}
+		if got := f.names(); !reflect.DeepEqual(got, want) {
+			t.Fatalf("ii call order = %v, want %v (ipgroup before ispdomain)", got, want)
+		}
+	})
+
+	t.Run("ip", func(t *testing.T) {
+		f := newFakeIkuai(t, map[string][]map[string]any{})
+		var sink recSink
+		if err := RunUpdateByModule(mixedCfg(t), cliLoginFor(f), "ip", &UpdateOptions{}, sink.sink); err != nil {
+			t.Fatalf("RunUpdateByModule(ip): %v", err)
+		}
+		want := []string{
+			"login",
+			"route_object.show", "route_object.add",
+			"route_object.show", "route_object.add",
+		}
+		if got := f.names(); !reflect.DeepEqual(got, want) {
+			t.Fatalf("ip call order = %v, want %v", got, want)
+		}
+		adds := f.callsFor(ikuai.FUNC_NAME_ROUTE_OBJECT, "add")
+		if len(adds) != 2 || adds[0].Param["type"] != float64(0) || adds[1].Param["type"] != float64(1) {
+			t.Fatalf("adds = %+v, want v4 (type 0) before v6 (type 1)", adds)
+		}
+	})
+
+	t.Run("iip", func(t *testing.T) {
+		f := newFakeIkuai(t, map[string][]map[string]any{})
+		var sink recSink
+		if err := RunUpdateByModule(mixedCfg(t), cliLoginFor(f), "iip", &UpdateOptions{}, sink.sink); err != nil {
+			t.Fatalf("RunUpdateByModule(iip): %v", err)
+		}
+		want := []string{
+			"login",
+			"route_object.show", "route_object.add",
+			"custom_isp.show", "custom_isp.add",
+			"route_object.show", "route_object.add",
+		}
+		if got := f.names(); !reflect.DeepEqual(got, want) {
+			t.Fatalf("iip call order = %v, want %v", got, want)
+		}
+		adds := f.callsFor(ikuai.FUNC_NAME_ROUTE_OBJECT, "add")
+		if len(adds) != 2 || adds[0].Param["type"] != float64(0) || adds[1].Param["type"] != float64(1) {
+			t.Fatalf("adds = %+v, want v4 before v6", adds)
+		}
+	})
+}
+
+// TestInvalidModule 未知模块返回 invalid_module（update.rs L121 + runner.rs）：
+// login 仍会发生（对齐 Rust 顺序），但其后无任何 API 调用；ValidateModule
+// 对六个合法模块放行。
+// TestInvalidModule: an unknown module yields invalid_module (update.rs L121 +
+// runner.rs); login still happens first (matching the Rust order) with no API
+// calls after it, and ValidateModule accepts the six legal modules.
+func TestInvalidModule(t *testing.T) {
+	f := newFakeIkuai(t, map[string][]map[string]any{})
+	var sink recSink
+	err := RunUpdateByModule(mixedCfg(t), cliLoginFor(f), "bogus", &UpdateOptions{}, sink.sink)
+	if err == nil || err.Kind != ErrKindInvalidModule || err.Msg != "bogus" {
+		t.Fatalf("RunUpdateByModule(bogus) = %v, want invalid_module/bogus", err)
+	}
+	if got := f.names(); !reflect.DeepEqual(got, []string{"login"}) {
+		t.Fatalf("calls after invalid module = %v, want only login", got)
+	}
+
+	for _, m := range []string{"ispdomain", "ipgroup", "ipv6group", "ii", "ip", "iip"} {
+		if vErr := ValidateModule(m); vErr != nil {
+			t.Errorf("ValidateModule(%q) = %v, want nil", m, vErr)
+		}
+	}
+	if vErr := ValidateModule("bogus"); vErr == nil || vErr.Kind != ErrKindInvalidModule {
+		t.Fatalf("ValidateModule(bogus) = %v, want invalid_module", vErr)
+	}
+}
