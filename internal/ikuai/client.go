@@ -159,6 +159,26 @@ func parseCallResponse(text string, out *CallResp) error {
 	return nil
 }
 
+// decodeResultsData 复刻 Rust 各模块 call::<Vec<Row>> 之后的取数语义：
+// results 缺失 => invalid_response "missing results"（custom_isp.rs L33-35 等），
+// data 非数组/为 null => invalid_response "decode error: ..."（types.rs L175-193 泛型解码）。
+// decodeResultsData replicates what Rust modules get after call::<Vec<Row>>:
+// missing results => invalid_response "missing results" (custom_isp.rs L33-35 etc.),
+// non-array or null data => invalid_response "decode error: ..." (the generic
+// decode inside types.rs L175-193).
+func decodeResultsData(resp *CallResp, out any) error {
+	if resp.Results == nil {
+		return &IKuaiError{Kind: ErrKindInvalidResponse, Msg: "missing results"}
+	}
+	if string(bytes.TrimSpace(resp.Results.Data)) == "null" {
+		return &IKuaiError{Kind: ErrKindInvalidResponse, Msg: "decode error: data must be an array"}
+	}
+	if err := json.Unmarshal(resp.Results.Data, out); err != nil {
+		return &IKuaiError{Kind: ErrKindInvalidResponse, Msg: "decode error: " + err.Error()}
+	}
+	return nil
+}
+
 // trimBody 对齐 types.rs L222-239：trim 后超过 200 字节则 UTF-8 安全截断并追加 "..."。
 // trimBody mirrors types.rs L222-239: trim, then truncate UTF-8-safely at 200 bytes and append "...".
 func trimBody(text string) string {
