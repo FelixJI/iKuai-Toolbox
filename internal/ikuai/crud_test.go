@@ -11,7 +11,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -153,7 +152,9 @@ func (f *fakeIkuai) showRows(funcName string, param map[string]any) []map[string
 		if hasFilter && funcName == FUNC_NAME_ROUTE_OBJECT {
 			parts := strings.Split(filter, ",")
 			if len(parts) == 3 && parts[0] == "type" && parts[1] == "=" {
-				if got, ok := row["type"].(float64); !ok || strconv.FormatInt(int64(got), 10) != parts[2] {
+				// 种子行数字可能是 int 或经 JSON 往返的 float64，统一按文本比较。
+				// Seeded numbers may be int or JSON round-tripped float64; compare as text.
+				if fmt.Sprintf("%v", row["type"]) != parts[2] {
 					continue
 				}
 			}
@@ -368,5 +369,206 @@ func TestCustomIspDelAll(t *testing.T) {
 	remain := f.rowsOf(FUNC_NAME_CUSTOM_ISP)
 	if len(remain) != 1 || remain[0]["id"] != 23 {
 		t.Errorf("remaining rows = %v, want only unmanaged id 23", remain)
+	}
+}
+
+// routeObjectRows v4/v6 混合种子：1/2 号 plain 分片、R?? 随机后缀分片（截断兼容）、
+// 精确名分组、非受管分组，以及 v6 分片。
+// Mixed v4/v6 seeds: plain shards 1/2, an R?? random-suffix shard (truncation
+// compat), an exact-name group, an unmanaged group, plus a v6 shard.
+func routeObjectRows() []map[string]any {
+	return []map[string]any{
+		{"id": 21, "group_name": "IKBdemo1", "type": 0, "comment": "",
+			"group_value": []any{map[string]any{"ip": "1.1.1.1", "comment": ""}, map[string]any{"ip": "2.2.2.2", "comment": ""}}},
+		{"id": 22, "group_name": "IKBdemo2", "type": 0, "comment": "",
+			"group_value": []any{map[string]any{"ip": "3.3.3.3", "comment": ""}}},
+		{"id": 25, "group_name": BuildIndexedIpGroupTagName("trunk", 2), "type": 0, "comment": "",
+			"group_value": []any{map[string]any{"ip": "5.5.5.5", "comment": ""}}},
+		{"id": 23, "group_name": "home", "type": 0, "comment": "",
+			"group_value": []any{map[string]any{"ip": "192.168.0.0/16", "comment": ""}}},
+		{"id": 26, "group_name": "IKBhome1", "type": 0, "comment": "",
+			"group_value": []any{map[string]any{"ip": "10.0.0.0/8", "comment": ""}}},
+		{"id": 24, "group_name": "user-group", "type": 0, "comment": "keep",
+			"group_value": []any{map[string]any{"ip": "9.9.9.9", "comment": ""}}},
+		{"id": 31, "group_name": "IKBdemo1", "type": 1, "comment": "",
+			"group_value": []any{map[string]any{"ipv6": "fd00::/8", "comment": ""}}},
+	}
+}
+
+// TestRouteObjectCrud 覆盖 ip_group/ipv6_group（ip_group.rs / ipv6_group.rs）：
+// show FILTER type=0/1、group_value 展平、add/edit 请求体、GetMap 索引解析
+// （含 R?? 后缀尾数字兜底）、ResolveRuleReference 精确名优先。
+// TestRouteObjectCrud covers ip_group/ipv6_group: the show FILTER type=0/1,
+// group_value flattening, add/edit bodies, GetMap index parsing (including the
+// R?? trailing-digit fallback) and exact-name-first ResolveRuleReference.
+func TestRouteObjectCrud(t *testing.T) {
+	f := newFakeIkuai(t, map[string][]map[string]any{FUNC_NAME_ROUTE_OBJECT: routeObjectRows()})
+	api := f.client()
+
+	v4, err := ShowIpGroupByTagName(api, "demo")
+	if err != nil {
+		t.Fatalf("ShowIpGroupByTagName: %v", err)
+	}
+	if len(v4) != 2 || v4[0].ID != 21 || v4[1].ID != 22 {
+		t.Fatalf("v4 rows = %+v, want ids 21,22", v4)
+	}
+	if v4[0].AddrPool != "1.1.1.1,2.2.2.2" || v4[0].GroupName != "IKBdemo1" || v4[0].Type != 0 {
+		t.Errorf("v4 row 0 = %+v, want flattened pool/IKBdemo1/type 0", v4[0])
+	}
+	call := f.lastCall()
+	if len(call.Param) != 3 || call.Param["TYPE"] != "total,data" || call.Param["limit"] != "0,1000" ||
+		call.Param["FILTER1"] != "type,=,0" {
+		t.Errorf("v4 show param = %v, want TYPE/limit/FILTER1=type,=,0", call.Param)
+	}
+
+	ipv6, err := ShowIpv6GroupByTagName(api, "demo")
+	if err != nil {
+		t.Fatalf("ShowIpv6GroupByTagName: %v", err)
+	}
+	if len(ipv6) != 1 || ipv6[0].ID != 31 || ipv6[0].AddrPool != "fd00::/8" || ipv6[0].Type != 1 {
+		t.Fatalf("v6 rows = %+v, want single id 31 with fd00::/8 type 1", ipv6)
+	}
+	if f.lastCall().Param["FILTER1"] != "type,=,1" {
+		t.Errorf("v6 show FILTER1 = %v, want type,=,1", f.lastCall().Param["FILTER1"])
+	}
+
+	if err := AddIpGroup(api, "demo", " 1.1.1.1, 2.2.2.1 ,,", 1); err != nil {
+		t.Fatalf("AddIpGroup: %v", err)
+	}
+	call = f.lastCall()
+	if call.Action != "add" || len(call.Param) != 4 {
+		t.Fatalf("v4 add = %+v, want exactly group_name/type/group_value/comment", call)
+	}
+	if call.Param["group_name"] != "IKBdemo2" || call.Param["type"] != float64(0) || call.Param["comment"] != "" {
+		t.Errorf("v4 add scalars = %v", call.Param)
+	}
+	wantRaw := `{"func_name":"route_object","action":"add","param":{"comment":"","group_name":"IKBdemo2",` +
+		`"group_value":[{"comment":"","ip":"1.1.1.1"},{"comment":"","ip":"2.2.2.1"}],"type":0}}`
+	if call.Raw != wantRaw {
+		t.Errorf("v4 add wire body =\n%s\nwant\n%s", call.Raw, wantRaw)
+	}
+
+	if err := EditIpGroup(api, "demo", "3.3.3.3", 0, 21); err != nil {
+		t.Fatalf("EditIpGroup: %v", err)
+	}
+	call = f.lastCall()
+	if call.Action != "edit" || len(call.Param) != 5 || call.Param["id"] != float64(21) {
+		t.Errorf("v4 edit = %+v, want 5 keys with id 21", call)
+	}
+
+	if err := AddIpv6Group(api, "demo", "fd00::/8", 0); err != nil {
+		t.Fatalf("AddIpv6Group: %v", err)
+	}
+	call = f.lastCall()
+	if call.Param["type"] != float64(1) || call.Param["group_name"] != "IKBdemo1" {
+		t.Errorf("v6 add scalars = %v, want type 1 / IKBdemo1", call.Param)
+	}
+	gv, _ := call.Param["group_value"].([]any)
+	if len(gv) != 1 || gv[0].(map[string]any)["ipv6"] != "fd00::/8" {
+		t.Errorf("v6 group_value = %v, want [{ipv6:fd00::/8,comment:\"\"}]", call.Param["group_value"])
+	}
+
+	if err := EditIpv6Group(api, "demo", "fd01::/16", 0, 31); err != nil {
+		t.Fatalf("EditIpv6Group: %v", err)
+	}
+	if got := f.lastCall().Param["id"]; got != float64(31) {
+		t.Errorf("v6 edit id = %v, want 31", got)
+	}
+
+	gotMap, err := GetIpGroupMap(api, "demo")
+	if err != nil {
+		t.Fatalf("GetIpGroupMap: %v", err)
+	}
+	if len(gotMap) != 2 || gotMap[1] != 21 || gotMap[2] != 22 {
+		t.Errorf("GetIpGroupMap = %v, want {1:21, 2:22}", gotMap)
+	}
+	trunkMap, err := GetIpGroupMap(api, "trunk")
+	if err != nil {
+		t.Fatalf("GetIpGroupMap(trunk): %v", err)
+	}
+	if len(trunkMap) != 1 || trunkMap[3] != 25 {
+		t.Errorf("trunk map = %v, want {3:25} via trailing-digit fallback", trunkMap)
+	}
+	v6Map, err := GetIpv6GroupMap(api, "demo")
+	if err != nil {
+		t.Fatalf("GetIpv6GroupMap: %v", err)
+	}
+	if len(v6Map) != 1 || v6Map[1] != 31 {
+		t.Errorf("GetIpv6GroupMap = %v, want {1:31}", v6Map)
+	}
+
+	withName, err := GetIpGroupMapWithName(api, "demo")
+	if err != nil {
+		t.Fatalf("GetIpGroupMapWithName: %v", err)
+	}
+	if len(withName) != 2 || withName[1].ID != 21 || withName[1].Name != "IKBdemo1" || withName[2].ID != 22 {
+		t.Errorf("GetIpGroupMapWithName = %+v, want {1:{21,IKBdemo1}, 2:{22,IKBdemo2}}", withName)
+	}
+
+	exact, err := ResolveRuleReferenceIpGroupNames(api, "home")
+	if err != nil {
+		t.Fatalf("ResolveRuleReferenceIpGroupNames(home): %v", err)
+	}
+	if len(exact) != 1 || exact[0] != "home" {
+		t.Errorf("resolve(home) = %v, want exact [home] only (managed IKBhome1 must not leak)", exact)
+	}
+	managed, err := ResolveRuleReferenceIpGroupNames(api, "demo")
+	if err != nil {
+		t.Fatalf("ResolveRuleReferenceIpGroupNames(demo): %v", err)
+	}
+	if len(managed) != 2 || managed[0] != "IKBdemo1" || managed[1] != "IKBdemo2" {
+		t.Errorf("resolve(demo) = %v, want [IKBdemo1 IKBdemo2]", managed)
+	}
+	empty, err := ResolveRuleReferenceIpGroupNames(api, "  ")
+	if err != nil {
+		t.Fatalf("ResolveRuleReferenceIpGroupNames(blank): %v", err)
+	}
+	if len(empty) != 0 {
+		t.Errorf("resolve(blank) = %v, want empty", empty)
+	}
+	none, err := ResolveRuleReferenceIpGroupNames(api, "nope")
+	if err != nil {
+		t.Fatalf("ResolveRuleReferenceIpGroupNames(nope): %v", err)
+	}
+	if len(none) != 0 {
+		t.Errorf("resolve(nope) = %v, want empty", none)
+	}
+
+	names, err := GetAllIkuaiBypassIpGroupNamesByName(api, "demo")
+	if err != nil {
+		t.Fatalf("GetAllIkuaiBypassIpGroupNamesByName: %v", err)
+	}
+	if len(names) != 2 || names[0] != "IKBdemo1" || names[1] != "IKBdemo2" {
+		t.Errorf("names by name = %v, want [IKBdemo1 IKBdemo2]", names)
+	}
+}
+
+// TestRouteObjectClean v4/v6 清理循环只删受管分片，R?? 后缀名因不含 cleanTag 而保留。
+// TestRouteObjectClean: the v4/v6 clean loops drop only managed shards whose
+// name/comment matches the clean tag; the R??-suffixed name survives (no containment).
+func TestRouteObjectClean(t *testing.T) {
+	f := newFakeIkuai(t, map[string][]map[string]any{FUNC_NAME_ROUTE_OBJECT: routeObjectRows()})
+	api := f.client()
+
+	if err := DelIkuaiBypassIpGroup(api, "demo"); err != nil {
+		t.Fatalf("DelIkuaiBypassIpGroup: %v", err)
+	}
+	dels := f.callsFor(FUNC_NAME_ROUTE_OBJECT, "del")
+	if len(dels) != 1 {
+		t.Fatalf("v4 del calls = %d, want 1", len(dels))
+	}
+	if dels[0].Param["id"] != "21,22" {
+		t.Errorf("v4 del ids = %v, want 21,22 (R??/home/user survive)", dels[0].Param["id"])
+	}
+
+	if err := DelIkuaiBypassIpv6Group(api, "demo"); err != nil {
+		t.Fatalf("DelIkuaiBypassIpv6Group: %v", err)
+	}
+	dels = f.callsFor(FUNC_NAME_ROUTE_OBJECT, "del")
+	if len(dels) != 2 || dels[1].Param["id"] != "31" {
+		t.Errorf("v6 del calls = %+v, want second del with id 31", dels)
+	}
+	if remain := f.rowsOf(FUNC_NAME_ROUTE_OBJECT); len(remain) != 4 {
+		t.Errorf("remaining rows = %d, want 4 (trunk/home/IKBhome/user-group kept)", len(remain))
 	}
 }
