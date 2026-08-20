@@ -1,101 +1,98 @@
 {
   // CLI targets / CLI 发布目标
+  // Why/为什么: Go 交叉编译以 goos/goarch/goarm 描述目标；label 是资产命名与
+  // docker/bin 目录的稳定键，资产名经 arch-helpers.sh 映射后与历史版本逐字节一致。
+  // English: targets are described by goos/goarch/goarm for Go cross-compile;
+  // label is the stable key for asset naming and docker/bin layout, mapped via
+  // arch-helpers.sh to byte-identical legacy asset names.
   "cli": [
     {
       "label": "linux-amd64",
-      "runner": "ubuntu-latest",
-      "target": "x86_64-unknown-linux-musl",
-      "builder": "cross",
+      "goos": "linux",
+      "goarch": "amd64",
       "archive": "zip",
       "docker_platform": "linux/amd64",
       "mode": ["minimal", "full"]
     },
     {
       "label": "linux-386",
-      "runner": "ubuntu-latest",
-      "target": "i686-unknown-linux-musl",
-      "builder": "cross",
+      "goos": "linux",
+      "goarch": "386",
       "archive": "zip",
       "docker_platform": "linux/386",
       "mode": ["full"]
     },
     {
       "label": "linux-arm5",
-      "runner": "ubuntu-latest",
-      "target": "armv5te-unknown-linux-musleabi",
-      "builder": "cross",
+      "goos": "linux",
+      "goarch": "arm",
+      "goarm": "5",
       "archive": "zip",
       "docker_platform": "",
       "mode": ["full"]
     },
     {
       "label": "linux-arm6",
-      "runner": "ubuntu-latest",
-      "target": "arm-unknown-linux-musleabi",
-      "builder": "cross",
+      "goos": "linux",
+      "goarch": "arm",
+      "goarm": "6",
       "archive": "zip",
       "docker_platform": "",
       "mode": ["full"]
     },
     {
       "label": "linux-arm7",
-      "runner": "ubuntu-latest",
-      "target": "armv7-unknown-linux-musleabihf",
-      "builder": "cross",
+      "goos": "linux",
+      "goarch": "arm",
+      "goarm": "7",
       "archive": "zip",
       "docker_platform": "linux/arm/v7",
       "mode": ["full"]
     },
     {
       "label": "linux-arm64",
-      "runner": "ubuntu-latest",
-      "target": "aarch64-unknown-linux-musl",
-      "builder": "cross",
+      "goos": "linux",
+      "goarch": "arm64",
       "archive": "zip",
       "docker_platform": "linux/arm64",
       "mode": ["full"]
     },
     {
       "label": "linux-ppc64le",
-      "runner": "ubuntu-latest",
-      "target": "powerpc64le-unknown-linux-gnu",
-      "builder": "cross",
+      "goos": "linux",
+      "goarch": "ppc64le",
       "archive": "zip",
       "docker_platform": "linux/ppc64le",
       "mode": ["full"]
     },
     {
       "label": "linux-riscv64",
-      "runner": "ubuntu-latest",
-      "target": "riscv64gc-unknown-linux-musl",
-      "builder": "cross",
+      "goos": "linux",
+      "goarch": "riscv64",
       "archive": "zip",
       "docker_platform": "linux/riscv64",
       "mode": ["full"]
     },
     {
       "label": "windows-amd64",
-      "runner": "windows-latest",
-      "target": "x86_64-pc-windows-msvc",
-      "builder": "cargo",
+      "goos": "windows",
+      "goarch": "amd64",
       "archive": "zip",
       "docker_platform": "",
       "mode": ["minimal", "full"]
     },
     {
       "label": "macos-amd64",
-      "runner": "macos-15",
-      "target": "x86_64-apple-darwin",
-      "builder": "cargo",
+      "goos": "darwin",
+      "goarch": "amd64",
       "archive": "zip",
       "docker_platform": "",
       "mode": ["full"]
     },
     {
       "label": "macos-arm64",
-      "runner": "macos-15",
-      "target": "aarch64-apple-darwin",
-      "builder": "cargo",
+      "goos": "darwin",
+      "goarch": "arm64",
       "archive": "zip",
       "docker_platform": "",
       "mode": ["full"]
@@ -103,63 +100,73 @@
   ],
 
   // BSD targets / BSD 发布目标
+  // Why/为什么: Go 原生支持 freebsd 交叉编译，不再需要 FreeBSD VM。
+  // English: Go supports freebsd cross-compile natively, no FreeBSD VM needed.
   "bsd": [
     {
       "label": "freebsd-amd64",
-      "runner": "ubuntu-latest",
-      "vm_os": "freebsd",
-      "target": "x86_64-unknown-freebsd",
+      "goos": "freebsd",
+      "goarch": "amd64",
       "archive": "zip",
       "mode": ["full"]
     },
     {
       "label": "freebsd-386",
-      "runner": "ubuntu-latest",
-      "vm_os": "freebsd",
-      "target": "i686-unknown-freebsd",
+      "goos": "freebsd",
+      "goarch": "386",
       "archive": "zip",
       "mode": ["full"]
     }
   ],
 
-  // Nightly-only targets / 仅 nightly 的实验目标
+  // Experimental MIPS targets / 实验性 MIPS 目标
+  // Why/为什么: Go 对 MIPS 是一等支持，不再需要 nightly 工具链；仍保留
+  // nightly 实验语义（job continue-on-error，仅 full 模式自动包含）。
+  // English: MIPS is first-class in Go, no nightly toolchain needed; the
+  // experimental semantics stay (continue-on-error job, full mode only).
   "cli_nightly": [
     {
       "label": "linux-mipsel",
-      "runner": "ubuntu-latest",
-      "target": "mipsel-unknown-linux-musl",
+      "goos": "linux",
+      "goarch": "mipsle",
       "archive": "zip",
       "mode": ["full"]
     },
     {
       "label": "linux-mips64",
-      "runner": "ubuntu-latest",
-      "target": "mips64-unknown-linux-gnuabi64",
+      "goos": "linux",
+      "goarch": "mips64",
       "archive": "zip",
       "mode": ["full"]
     },
     {
       "label": "linux-mips64el",
-      "runner": "ubuntu-latest",
-      "target": "mips64el-unknown-linux-gnuabi64",
+      "goos": "linux",
+      "goarch": "mips64le",
       "archive": "zip",
       "mode": ["full"]
     },
     {
       "label": "linux-mips",
-      "runner": "ubuntu-latest",
-      "target": "mips-unknown-linux-gnu",
+      "goos": "linux",
+      "goarch": "mips",
       "archive": "zip",
       "mode": ["full"]
     }
   ],
 
-  // GUI targets / GUI 发布目标
+  // Desktop GUI targets / 桌面 GUI 发布目标
+  // Why/为什么: Tauri 壳仍是 Rust 构建（target 为 Rust 三元组）；构建前先用
+  // goos/goarch 交叉编译 sidecar 到 apps/gui/binaries/ikuai-bypass-go-<target>。
+  // English: the Tauri shell is still Rust-built (target is the Rust triple);
+  // the Go sidecar is cross-compiled first into apps/gui/binaries/ikuai-bypass-go-<target>.
   "gui": [
     {
       "label": "linux-x86_64",
       "runner": "ubuntu-22.04",
       "target": "x86_64-unknown-linux-gnu",
+      "goos": "linux",
+      "goarch": "amd64",
       "bundle_args": "",
       "bundle_active": false,
       "collect_pattern": "target/release/ikb-app",
@@ -169,15 +176,23 @@
       "label": "windows-x86_64",
       "runner": "windows-latest",
       "target": "x86_64-pc-windows-msvc",
+      "goos": "windows",
+      "goarch": "amd64",
       "bundle_args": "",
       "bundle_active": false,
-      "collect_pattern": "target/release/*.exe",
+      // Why/为什么: 显式点名 ikb-app.exe；通配 *.exe 会把 tauri-build 复制进来的
+      // sidecar ikuai-bypass-go.exe 也收进 GUI zip（后写覆盖导致 zip 内容错乱）。
+      // English: pin ikb-app.exe explicitly; a *.exe wildcard would also pick up
+      // the sidecar ikuai-bypass-go.exe copied by tauri-build and overwrite the zip.
+      "collect_pattern": "target/release/ikb-app.exe",
       "mode": ["full"]
     },
     {
       "label": "macos-aarch64",
       "runner": "macos-15",
       "target": "aarch64-apple-darwin",
+      "goos": "darwin",
+      "goarch": "arm64",
       "bundle_args": "--bundles dmg",
       "bundle_active": true,
       "collect_pattern": "target/release/bundle/**/*.dmg",
@@ -187,6 +202,8 @@
       "label": "macos-x86_64",
       "runner": "macos-15",
       "target": "x86_64-apple-darwin",
+      "goos": "darwin",
+      "goarch": "amd64",
       "bundle_args": "--bundles dmg",
       "bundle_active": true,
       "collect_pattern": "target/release/bundle/**/*.dmg",
@@ -195,6 +212,9 @@
   ],
 
   // Android GUI targets / Android GUI 发布目标
+  // Why/为什么: 移动壳不启动 sidecar，构建配置剔除 externalBin（无 goos/goarch）。
+  // English: the mobile shell never spawns the sidecar; externalBin is stripped
+  // from the generated config (no goos/goarch needed).
   "gui_android": [
     {
       "label": "android-aarch64",
@@ -219,7 +239,7 @@
     }
   ],
 
-  // iOS GUI targets / iOS GUI 发布目标
+  // iOS GUI targets / iOS GUI 发布目标（同 Android，不打包 sidecar）
   "gui_ios": [
     {
       "label": "ios-aarch64",

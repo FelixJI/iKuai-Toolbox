@@ -5,8 +5,8 @@
 ## 1. 触发方式
 
 - `.github/workflows/release.yml` 仅支持 `tag push` 和 `workflow_dispatch`
-- `.github/workflows/trigger-release.yml` 只监听 `main` 上的版本相关文件变更，用于识别 `cargo release --execute` 产生的 release commit 并转发到 `release.yml`
 - 不包含 `schedule`，不会每日自动构建
+- 历史上用于转发 `cargo release --execute` release commit 的 `trigger-release.yml` 已随 Rust workspace 归档（`rust_archive/`）一并移除；Go 主线发布统一走 tag push 或手动 `workflow_dispatch`
 
 ### Tag 触发
 
@@ -16,21 +16,14 @@
   - `publish_release=true`
   - `push_docker=true`
 
-### Release Commit Push 触发
+### Main 普通提交
 
-- `release.yml` 本身不再监听 `main` 普通提交，避免误触发重型构建
-- `trigger-release.yml` 会在 `main` push 后检查两件事：
-  - `HEAD` 提交标题必须等于 `release.toml` 中的 `pre-release-commit-message`
-  - `HEAD` 必须同时指向 `ikuai-bypass-v*` canonical tag
-- 同时它只在 `Cargo.toml` / `Cargo.lock` / `release.toml` 等 release 相关文件发生变更时才会运行
-- 只有同时满足时，才会把 `release.yml` 以该 tag ref 再次 `workflow_dispatch`
-- 如果只是普通 `main` 提交，或者 release commit 还没有对应 canonical tag，则只会在 trigger workflow 内快速跳过
-- 这是为了兼容 `cargo release --execute` 把 release commit 与 tag 一起 push 的场景，同时避免普通提交直接跑发布流水线
+- `release.yml` 不监听 `main` 普通提交，避免误触发重型构建
 
 ### 去重规则
 
 - `release.yml` 的并发组按 `ref + build_mode + build_target` 去重
-- 当 tag push 和 trigger-dispatch 同时命中同一个 canonical tag 时，后来的 run 会取消前一个 run，避免重复发布
+- 同一 canonical tag 的重复触发只保留最后一个 run，避免重复发布
 
 ### 手动触发
 
@@ -67,7 +60,7 @@
 规则如下：
 
 - `workflow_dispatch` 且 `trigger_mode=manual`：GitHub Release 一律标记为 `prerelease`
-- tag push，或由 `trigger-release.yml` 以 `trigger_mode=tag` 转发的执行：按 tag 名关键字判断是否为 `prerelease`
+- tag push：按 tag 名关键字判断是否为 `prerelease`
 - 命中上述关键字：GitHub Release 标记为 `prerelease`
 - 未命中上述关键字：GitHub Release 视为正式版本
 
@@ -108,6 +101,12 @@ Docker 镜像标签始终包含：
 
 ## 5. 当前 CLI 构建矩阵
 
+所有 CLI / BSD / nightly 目标都在 ubuntu-latest 上用 Go 交叉编译产出：
+
+- 命令固定为 `CGO_ENABLED=0 GOOS=<goos> GOARCH=<goarch> [GOARM=<goarm>] go build -trimpath -ldflags "-s -w" -o ikuai-bypass[.exe] ./cmd/ikuai-bypass`
+- 构建前置：`frontends/app/dist` 必须先由 `build-frontend` 产出（`go:embed` 编译前置）
+- 目标由 `.github/build_matrix.jsonc` 的 `goos` / `goarch` / `goarm` 字段描述；`label` 是资产命名与 `docker/bin` 目录的稳定键
+
 ### Stable CLI
 
 `minimal`：
@@ -134,23 +133,30 @@ Docker 镜像标签始终包含：
 - `freebsd-amd64`
 - `freebsd-386`
 
+Go 原生支持 freebsd 交叉编译，不再依赖 FreeBSD VM。
+
 ### Experimental Nightly CLI
 
 仅 `full` 时启用：
 
-- `linux-mipsel` -> `mipsel-unknown-linux-musl`
-- `linux-mips64` -> `mips64-unknown-linux-gnuabi64`
-- `linux-mips64el` -> `mips64el-unknown-linux-gnuabi64`
-- `linux-mips` -> `mips-unknown-linux-gnu`
+- `linux-mipsel` -> `linux/mipsle`
+- `linux-mips64` -> `linux/mips64`
+- `linux-mips64el` -> `linux/mips64le`
+- `linux-mips` -> `linux/mips`
 
 说明：
 
-- 这组目标属于实验性 nightly 架构
+- 这组目标属于实验性 nightly 架构（Go 一等支持，不再需要 nightly 工具链）
 - 选择 `full` 时自动包含
 - job 名称固定为 `CLI Nightly Experimental`
 - 该 job 设置了 `continue-on-error: true`
 
 ## 6. 当前 GUI 构建矩阵
+
+Tauri 壳仍是 Rust 构建（`cargo tauri build`），但每个桌面目标在打包前先用 Go 交叉编译 sidecar：
+
+- 命令：`CGO_ENABLED=0 GOOS=<goos> GOARCH=<goarch> go build -trimpath -ldflags "-s -w" -o apps/gui/binaries/ikuai-bypass-go-<Rust 三元组>[.exe] ./cmd/ikuai-bypass`
+- 命名依据见 `apps/gui/README.md`：sidecar 基名为 `ikuai-bypass-go`（避免与主程序 `ikuai-bypass` 互相覆盖），文件名必须带目标三元组后缀
 
 ### Desktop GUI
 
@@ -174,6 +180,7 @@ Docker 镜像标签始终包含：
 
 说明：
 
+- 移动壳不启动 sidecar（只弹提示窗），且 `android/arm`、`android/amd64` 无法产出 `CGO_ENABLED=0` 的 sidecar，因此移动端构建配置会剔除 `bundle.externalBin`（`IKB_MOBILE_SKIP_SIDECAR=1`，见 `apps/gui/scripts/prepare-tauri-mobile-config.mjs`）
 - CI 会优先收集 `universal release unsigned.apk`
 - 上传前会执行 `zipalign` 和 `apksigner`
 - 最终发布的是可直接安装的已签名 APK，而不是原始 unsigned APK
@@ -186,6 +193,7 @@ Docker 镜像标签始终包含：
 
 说明：
 
+- 与 Android 相同，构建配置剔除 `bundle.externalBin`，不打包 sidecar
 - CI 会显式准备 CocoaPods，避免依赖 runner 上不稳定的 Homebrew 状态
 - 最终产物默认是未签名 `.app` 打包得到的 `.ipa`，用于分发存档而不是直接上架 App Store
 
@@ -265,7 +273,7 @@ GitHub Actions 内部 artifact 名仅用于 job 间传递：
 - ipkg 的最终文件名按架构固定，例如 `ikuai-bypass-x86_64.ipkg`、`ikuai-bypass-aarch64.ipkg`，不包含版本号
 - 仓库内只保留 `manifest.template.json` 模板，最终 `manifest.json` 会在打包 staging 目录中渲染，避免 CI 或本地脚本原地改写源码树
 - 渲染后的 `manifest.json` 版本仍会对 semver 预发布后缀做归一化，例如 `4.4.100-alpha9.2` 会写成 `4.4.100`
-- 如果 workflow 的发布版本号不是 semver（例如 `manual-build-*` / `manual-release-*`），会回退读取 `apps/cli/Cargo.toml` 的版本并继续归一化，确保最终 `manifest.json` 始终是 `X.Y.Z`
+- 如果 workflow 的发布版本号不是 semver（例如 `manual-build-*` / `manual-release-*`），会回退读取 `internal/app/diagnostics.go` 中 `CoreVersion` 常量的版本并继续归一化，确保最终 `manifest.json` 始终是 `X.Y.Z`
 
 实现位置：
 

@@ -1,5 +1,5 @@
 {
-  description = "Rust CLI / Tauri Linux x86 GUI / Bun Astro 前端 / Jekyll 文档 开发编译环境";
+  description = "Go CLI / Tauri Linux x86 GUI / Bun Astro 前端 / Jekyll 文档 开发编译环境";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
@@ -13,6 +13,7 @@
         system
         pkgs
         basePackages
+        golangPackages
         rustPackages
         desktopPackages
         android
@@ -24,13 +25,14 @@
 
       bootstrapReleaseTools = pkgs.writeShellScriptBin "ikb-bootstrap-release-tools" ''
         set -euo pipefail
-        cargo binstall -y tauri-cli cross cargo-dist
+        cargo binstall -y tauri-cli
       '';
     in
     {
       devShells.${system}.default = pkgs.mkShell {
         packages =
           basePackages.all
+          ++ golangPackages.packages
           ++ rustPackages.packages
           ++ desktopPackages.packages
           ++ android.packages
@@ -39,7 +41,7 @@
           ++ playwrightPackages
           ++ [ bootstrapReleaseTools ];
 
-        env = rustPackages.env // desktopPackages.env // android.env // {
+        env = golangPackages.env // rustPackages.env // desktopPackages.env // android.env // {
           LD_LIBRARY_PATH = "${playwrightLibPath}:${rustPackages.libPath}";
         };
 
@@ -49,7 +51,8 @@
 
           echo "==========================================================="
           echo "== iKuai Bypass devShell =="
-          echo "  Rust 工具链由 rustup 管理，首次进入请执行："
+          echo "  Go 工具链：go / gopls / delve（CLI 主线）"
+          echo "  Rust 工具链由 rustup 管理（仅 Tauri GUI），首次进入请执行："
           echo "    rustup default stable"
           echo "  bun 依赖："
           echo "    bun install"

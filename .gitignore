@@ -37,7 +37,7 @@ GEMINI.md
 !packaging/ikuai-ipkg/ikuai-bypass/app/.env
 !packaging/ikuai-ipkg/ikuai-bypass/log/install.log
 !packaging/ikuai-ipkg/ikuai-bypass/log/run.log
-apps/integration-tests/.artifacts/
+apps/integration-tests-go/.artifacts/
 apps/gui/gen/
 frontends/app/src/env.d.ts
 **/dist/
@@ -50,3 +50,6 @@ test.yml
 CLAUDE.md
 **/.obsidian/workspace.json
 /result
+*.exe
+
+apps/gui/binaries/

@@ -4,4 +4,15 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
-exec bash apps/integration-tests/run-smoke-test.sh
+# Why/为什么: Go 主线的 smoke 集成测试需要先构建 CLI 二进制，而根包 go:embed
+# 要求 frontends/app/dist 存在；缺失时给出明确提示而不是报一堆编译错误。
+# English: the Go smoke integration tests build the CLI binary first, and the
+# root go:embed requires frontends/app/dist to exist; give a clear hint
+# instead of a wall of compile errors when it is missing.
+if [ ! -f frontends/app/dist/index.html ]; then
+  echo "frontends/app/dist missing (go:embed prerequisite):" >&2
+  echo "  cd frontends/app && bun install && bun run build" >&2
+  exit 1
+fi
+
+exec go test ./apps/integration-tests-go/... -count=1

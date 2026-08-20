@@ -1,4 +1,4 @@
-name: Release rust
+name: Release go
 
 on:
   push:
@@ -311,17 +311,14 @@ jobs:
           name: frontend-dist
           path: frontends/app/dist
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-go@v7
         with:
-          workspaces: |
-            . -> target
-          cache-on-failure: true
-          shared-key: verify-cli
+          go-version-file: go.mod
 
-      - name: Cargo check CLI
-        run: cargo check -p ikb-cli
+      - name: Go check CLI
+        run: |
+          go build ./...
+          go vet ./...
 
   build-frontend:
     name: Build Frontend Dist
@@ -331,12 +328,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Install Bun
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl -fsSL https://bun.sh/install | bash
-          echo "${HOME}/.bun/bin" >> "${GITHUB_PATH}"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - uses: actions/cache@v5
         with:
@@ -404,13 +398,11 @@ jobs:
       - verify-cli
       - build-frontend
     if: needs.resolve-matrix.outputs.has_cli == 'true'
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include: ${{ fromJson(needs.resolve-matrix.outputs.cli_matrix) }}
-    env:
-      CARGO_TARGET_DIR: target-cli-${{ matrix.label }}
     steps:
       - uses: actions/checkout@v7
 
@@ -419,54 +411,54 @@ jobs:
           name: frontend-dist
           path: frontends/app/dist
 
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            . -> ${{ env.CARGO_TARGET_DIR }}
-          cache-on-failure: true
-          shared-key: cli-${{ matrix.label }}
-
-      - name: Install cross
-        if: runner.os == 'Linux' && matrix.builder == 'cross'
-        run: cargo install cross --locked
-
-      - name: Build CLI with cargo
-        if: matrix.builder == 'cargo'
-        run: cargo build --locked --release --target ${{ matrix.target }} -p ikb-cli
-
-      - name: Build CLI with cross
-        if: matrix.builder == 'cross'
-        run: cross build --locked --release --target ${{ matrix.target }} -p ikb-cli
+      # Why/为什么: Go 单工具链交叉编译（CGO_ENABLED=0 静态二进制），dist 由上方 artifact 提供（embed 前置）。
+      # English: single Go toolchain cross-compile (CGO_ENABLED=0 static binary);
+      # the frontend dist comes from the artifact above (embed prerequisite).
+      - name: Build CLI with Go
+        shell: bash
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm || '' }}
+        run: |
+          set -euo pipefail
+          bin="ikuai-bypass"
+          if [ "${GOOS}" = "windows" ]; then
+            bin="ikuai-bypass.exe"
+          fi
+          go build -trimpath -ldflags "-s -w" -o "${bin}" ./cmd/ikuai-bypass
 
       - name: Package CLI artifact
         shell: bash
         env:
-          TARGET: ${{ matrix.target }}
+          GOOS: ${{ matrix.goos }}
+          LABEL: ${{ matrix.label }}
         run: |
           set -euo pipefail
           source .github/scripts/arch-helpers.sh
           mkdir -p release
-          export package_name="$(ikb_cli_zip_name "${TARGET}")"
+          export package_name="$(ikb_cli_zip_name "${LABEL}")"
           python <<'PY'
           import os
           import pathlib
           import shutil
           import zipfile
 
-          target = os.environ["TARGET"]
+          goos = os.environ["GOOS"]
           package_name = os.environ["package_name"]
           release_dir = pathlib.Path("release")
-          build_root = pathlib.Path(os.environ["CARGO_TARGET_DIR"])
-          build_dir = build_root / target / "release"
-          src = build_dir / ("ikb-cli.exe" if "windows" in target else "ikb-cli")
+
+          src_name = "ikuai-bypass.exe" if goos == "windows" else "ikuai-bypass"
+          src = pathlib.Path(src_name)
           if not src.exists():
               raise SystemExit(f"missing binary: {src}")
 
@@ -475,8 +467,7 @@ jobs:
               shutil.rmtree(stage)
           stage.mkdir(parents=True)
 
-          dst_name = "ikuai-bypass.exe" if "windows" in target else "ikuai-bypass"
-          shutil.copy2(src, stage / dst_name)
+          shutil.copy2(src, stage / src_name)
           shutil.copy2("README.md", stage / "README.md")
           shutil.copy2("config.yml", stage / "config.yml")
 
@@ -502,14 +493,12 @@ jobs:
       - verify-cli
       - build-frontend
     if: needs.resolve-matrix.outputs.has_cli_nightly == 'true'
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
         include: ${{ fromJson(needs.resolve-matrix.outputs.cli_nightly_matrix) }}
-    env:
-      CARGO_TARGET_DIR: target-cli-nightly-${{ matrix.label }}
     steps:
       - uses: actions/checkout@v7
 
@@ -518,84 +507,44 @@ jobs:
           name: frontend-dist
           path: frontends/app/dist
 
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
-      - name: Install nightly toolchain
-        run: rustup toolchain install nightly --profile minimal
-
-      - name: Install nightly rust-src
-        run: rustup component add rust-src --toolchain nightly
-
-      - name: Add nightly target
+      # Why/为什么: MIPS 在 Go 是一等支持，不再需要 nightly 工具链；仍保留实验语义（continue-on-error）。
+      # English: MIPS is first-class in Go, no nightly toolchain needed; the
+      # experimental semantics stay (continue-on-error).
+      - name: Build nightly CLI with Go
         shell: bash
-        run: |
-          set +e
-          rustup +nightly target add ${{ matrix.target }}
-          target_add_exit="$?"
-          set -e
-          if [ "${target_add_exit}" -ne 0 ]; then
-            # Why/为什么: 低等级 nightly 目标经常没有预编译 std，后续会由 build-std 兜底。
-            # English: Low-tier nightly targets often miss prebuilt std; later build-std covers this.
-            echo "::warning::Nightly target add skipped for ${{ matrix.target }}; continuing with build-std fallback."
-          fi
-
-      - name: Install cross
-        run: cargo install cross --locked
-
-      - name: Verify cross binary
-        shell: bash
-        run: |
-          set -euo pipefail
-          command -v cross
-          cross --version
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            . -> ${{ env.CARGO_TARGET_DIR }}
-          cache-on-failure: true
-          shared-key: cli-nightly-${{ matrix.label }}
-
-      - name: Build nightly CLI
-        id: build_nightly_cli
         env:
-          CARGO_UNSTABLE_BUILD_STD: "1"
-          RUSTUP_TOOLCHAIN: nightly
-        shell: bash
-        run: |
-          set +e
-          cross build --locked -Z build-std=std,panic_abort --release --target ${{ matrix.target }} -p ikb-cli
-          build_exit="$?"
-          set -e
-          echo "build_exit=${build_exit}" >> "${GITHUB_OUTPUT}"
-          if [ "${build_exit}" -ne 0 ]; then
-            echo "::warning::Nightly experimental target failed: ${{ matrix.target }}"
-          fi
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build -trimpath -ldflags "-s -w" -o ikuai-bypass ./cmd/ikuai-bypass
 
       - name: Package nightly CLI artifact
-        if: steps.build_nightly_cli.outputs.build_exit == '0'
         shell: bash
         env:
-          TARGET: ${{ matrix.target }}
+          LABEL: ${{ matrix.label }}
         run: |
           set -euo pipefail
           source .github/scripts/arch-helpers.sh
           mkdir -p release
-          export package_name="$(ikb_cli_zip_name "${TARGET}")"
+          export package_name="$(ikb_cli_zip_name "${LABEL}")"
           python <<'PY'
           import os
           import pathlib
           import shutil
           import zipfile
 
-          target = os.environ["TARGET"]
           package_name = os.environ["package_name"]
           release_dir = pathlib.Path("release")
-          build_root = pathlib.Path(os.environ["CARGO_TARGET_DIR"])
-          build_dir = build_root / target / "release"
-          src = build_dir / "ikb-cli"
+
+          src = pathlib.Path("ikuai-bypass")
           if not src.exists():
               raise SystemExit(f"missing binary: {src}")
 
@@ -617,7 +566,6 @@ jobs:
           PY
 
       - uses: actions/upload-artifact@v7
-        if: steps.build_nightly_cli.outputs.build_exit == '0'
         with:
           name: cli-${{ matrix.label }}
           path: release/*.zip
@@ -716,8 +664,11 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
+          # Why/为什么: 根 workspace 已归档到 rust_archive/，apps/gui 是独立 crate。
+          # English: the root workspace is archived under rust_archive/; apps/gui
+          # is a standalone crate now.
           workspaces: |
-            . -> target
+            apps/gui -> target
           cache-on-failure: true
           shared-key: gui-${{ matrix.label }}
 
@@ -763,6 +714,30 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: tauri-cli@2
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      # Why/为什么: bundle.externalBin 要求 apps/gui/binaries/ 下存在带目标三元组后缀的
+      # ikuai-bypass-go sidecar（apps/gui/README.md）；dist artifact 同时满足 Go 侧 embed 前置。
+      # English: bundle.externalBin expects the ikuai-bypass-go sidecar under
+      # apps/gui/binaries/ with the target-triple suffix (apps/gui/README.md);
+      # the dist artifact also satisfies the Go embed prerequisite.
+      - name: Build Go sidecar binary
+        shell: bash
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          set -euo pipefail
+          ext=""
+          if [ "${GOOS}" = "windows" ]; then
+            ext=".exe"
+          fi
+          mkdir -p apps/gui/binaries
+          go build -trimpath -ldflags "-s -w" -o "apps/gui/binaries/ikuai-bypass-go-${{ matrix.target }}${ext}" ./cmd/ikuai-bypass
 
       - name: Prepare Tauri CI config
         working-directory: apps/gui
@@ -824,8 +799,8 @@ jobs:
           set -euo pipefail
           source .github/scripts/arch-helpers.sh
           mkdir -p release
-          export zip_name="$(ikb_gui_zip_name "${TARGET}")"
-          export dmg_name="$(ikb_gui_native_name "${TARGET}" ".dmg")"
+          export zip_name="$(ikb_gui_zip_name "${LABEL}")"
+          export dmg_name="$(ikb_gui_native_name "${LABEL}" ".dmg")"
           python <<'PY'
           import glob
           import os
@@ -938,11 +913,16 @@ jobs:
         with:
           tool: tauri-cli@2
 
+      # Why/为什么: 移动壳不启动 sidecar，android/arm、android/amd64 也无法产出
+      # CGO_ENABLED=0 的 sidecar；生成配置时剔除 externalBin（见脚本内注释）。
+      # English: the mobile shell never spawns the sidecar and android/arm,
+      # android/amd64 cannot produce a CGO_ENABLED=0 sidecar; the generated
+      # config strips externalBin (see the script comments).
       - name: Prepare Tauri Android config
         working-directory: apps/gui
         shell: bash
         run: |
-          IKB_SKIP_BEFORE_BUILD=1 node ./scripts/prepare-tauri-mobile-config.mjs tauri.android.conf.json
+          IKB_SKIP_BEFORE_BUILD=1 IKB_MOBILE_SKIP_SIDECAR=1 node ./scripts/prepare-tauri-mobile-config.mjs tauri.android.conf.json
 
       - name: Recreate Android project
         working-directory: apps/gui
@@ -1013,7 +993,7 @@ jobs:
       - name: Package Android artifact
         shell: bash
         env:
-          TARGET: ${{ matrix.target }}
+          LABEL: ${{ matrix.label }}
           ANDROID_SIGNING_KEYSTORE_BASE64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}
           ANDROID_SIGNING_PASSWORD: ${{ secrets.ANDROID_SIGNING_PASSWORD }}
         run: |
@@ -1113,7 +1093,7 @@ jobs:
           ks_type="${ks_meta%%::*}"
           ks_alias="${ks_meta#*::}"
 
-          final_name="$(ikb_gui_native_name "${TARGET}" ".apk")"
+          final_name="$(ikb_gui_native_name "${LABEL}" ".apk")"
           aligned_apk="dist/${final_name%.apk}-aligned.apk"
           final_apk="dist/${final_name}"
           "${zipalign_bin}" -f 4 "${unsigned_apk}" "${aligned_apk}"
@@ -1171,8 +1151,11 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
+          # Why/为什么: 根 workspace 已归档到 rust_archive/，apps/gui 是独立 crate。
+          # English: the root workspace is archived under rust_archive/; apps/gui
+          # is a standalone crate now.
           workspaces: |
-            . -> target
+            apps/gui -> target
           cache-on-failure: true
           shared-key: gui-ios-${{ matrix.label }}
 
@@ -1232,7 +1215,7 @@ jobs:
         working-directory: apps/gui
         shell: bash
         run: |
-          IKB_SKIP_BEFORE_BUILD=1 node ./scripts/prepare-tauri-mobile-config.mjs tauri.ios.conf.json
+          IKB_SKIP_BEFORE_BUILD=1 IKB_MOBILE_SKIP_SIDECAR=1 node ./scripts/prepare-tauri-mobile-config.mjs tauri.ios.conf.json
           python <<'PY'
           import json
           import pathlib
@@ -1347,12 +1330,12 @@ jobs:
       - name: Package iOS artifact
         shell: bash
         env:
-          TARGET: ${{ matrix.target }}
+          LABEL: ${{ matrix.label }}
         run: |
           set -euo pipefail
           source .github/scripts/arch-helpers.sh
           mkdir -p dist
-          final_name="$(ikb_gui_native_name "${TARGET}" ".ipa")"
+          final_name="$(ikb_gui_native_name "${LABEL}" ".ipa")"
           ipa="$(find apps/gui -type f -name '*.ipa' | head -1 || true)"
           if [ -n "${ipa}" ] && [ -f "${ipa}" ]; then
             cp "${ipa}" "dist/${final_name}"
@@ -1394,8 +1377,6 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJson(needs.resolve-matrix.outputs.bsd_matrix) }}
-    env:
-      CARGO_TARGET_DIR: target-bsd-${{ matrix.label }}
     steps:
       - uses: actions/checkout@v7
 
@@ -1404,44 +1385,43 @@ jobs:
           name: frontend-dist
           path: frontends/app/dist
 
-      - name: Build in FreeBSD VM
-        if: matrix.vm_os == 'freebsd'
-        uses: vmactions/freebsd-vm@v1
+      - uses: actions/setup-go@v7
         with:
-          usesh: true
-          run: |
-            set -euo pipefail
-            env ASSUME_ALWAYS_YES=yes pkg bootstrap -f
-            pkg update -f
-            pkg install -y bash curl gcc gmake pkgconf perl5
-            export PATH="/usr/local/bin:${PATH}"
-            curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal
-            . "$HOME/.cargo/env"
-            rustup target add "${{ matrix.target }}"
-            export CARGO_TARGET_DIR="${{ env.CARGO_TARGET_DIR }}"
-            cargo build --locked --release --target "${{ matrix.target }}" -p ikb-cli
+          go-version-file: go.mod
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      # Why/为什么: Go 原生支持 freebsd 交叉编译，不再需要 FreeBSD VM。
+      # English: Go supports freebsd cross-compile natively, no FreeBSD VM needed.
+      - name: Build CLI with Go
+        shell: bash
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build -trimpath -ldflags "-s -w" -o ikuai-bypass ./cmd/ikuai-bypass
 
       - name: Package BSD artifact
         shell: bash
         env:
-          TARGET: ${{ matrix.target }}
+          LABEL: ${{ matrix.label }}
         run: |
           set -euo pipefail
           source .github/scripts/arch-helpers.sh
           mkdir -p release
-          export package_name="$(ikb_cli_zip_name "${TARGET}")"
+          export package_name="$(ikb_cli_zip_name "${LABEL}")"
           python <<'PY'
           import os
           import pathlib
           import shutil
           import zipfile
 
-          target = os.environ["TARGET"]
           package_name = os.environ["package_name"]
           release_dir = pathlib.Path("release")
-          build_root = pathlib.Path(os.environ["CARGO_TARGET_DIR"])
-          build_dir = build_root / target / "release"
-          src = build_dir / "ikb-cli"
+
+          src = pathlib.Path("ikuai-bypass")
           if not src.exists():
               raise SystemExit(f"missing binary: {src}")
 
@@ -1459,6 +1439,7 @@ jobs:
           with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=5) as zf:
               for path in stage.rglob("*"):
                   zf.write(path, path.relative_to(stage))
+          shutil.rmtree(stage)
           PY
 
       - uses: actions/upload-artifact@v7
@@ -1506,7 +1487,7 @@ jobs:
 
           read_cli_semver() {
             local raw
-            raw="$(sed -n 's/^version = "\([^"]*\)"$/\1/p' apps/cli/Cargo.toml | head -1)"
+            raw="$(sed -n 's/^const CoreVersion = "\([^"]*\)"$/\1/p' internal/app/diagnostics.go | head -1)"
             normalize_ipkg_version "${raw}"
           }
 
@@ -1528,11 +1509,10 @@ jobs:
           # Why/为什么: iKuai 应用市场最终是一包一镜像，amd64 和 arm64 需要分别导出，避免把错误架构的 ELF 塞进宿主镜像元数据。
           # English: iKuai installs one image per package, so amd64 and arm64 must be exported separately to keep image metadata aligned with the embedded ELF.
           jq -c '.[]' <<<"${IPKG_CLI_JSON}" | while IFS= read -r item; do
-            target="$(jq -r '.target' <<<"${item}")"
             label="$(jq -r '.label' <<<"${item}")"
             docker_platform="$(jq -r '.docker_platform' <<<"${item}")"
-            zipball_name="$(ikb_cli_zip_name "${target}")"
-            ipkg_name="$(ikb_ipkg_name "${target}")"
+            zipball_name="$(ikb_cli_zip_name "${label}")"
+            ipkg_name="$(ikb_ipkg_name "${label}")"
             image_tag="ikuai-bypass:ikuai"
             stage=".ipkg-stage-${label}"
             package_stage="${stage}/package/ikuai-bypass"

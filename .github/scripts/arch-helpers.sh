@@ -1,133 +1,99 @@
 #!/usr/bin/env bash
 
 # Why: keep artifact names stable across jobs and platforms / 为什么：统一不同平台产物命名，避免 workflow 到处散落字符串
+# Why/为什么: 矩阵以 label 为唯一命名键（与 goos/goarch 构建参数解耦）；资产后缀在此
+# 集中映射，保证与 Rust 时代的资产名逐字节一致（含 linux-riscv64 -> riscv64gc 等历史命名）。
+# English: matrix entries are keyed by label (decoupled from goos/goarch build
+# inputs); asset suffixes are mapped here so names stay byte-identical to the
+# Rust era (including legacy quirks such as linux-riscv64 -> riscv64gc).
 
-ikb_normalize_arch() {
-  local arch_raw="${1:-}"
+ikb_release_suffix() {
+  local label="${1:-}"
 
-  case "${arch_raw}" in
-    x86_64)
-      printf '%s\n' "x86_64"
+  case "${label}" in
+    linux-amd64)
+      printf '%s\n' "linux-x86_64"
       ;;
-    i686)
-      printf '%s\n' "x86_32"
+    linux-386)
+      printf '%s\n' "linux-x86_32"
       ;;
-    armv5te)
-      printf '%s\n' "arm5"
+    linux-arm5|linux-arm6|linux-arm7)
+      printf '%s\n' "${label}"
       ;;
-    arm)
-      printf '%s\n' "arm6"
+    linux-arm64)
+      printf '%s\n' "linux-aarch64"
       ;;
-    armv7)
-      printf '%s\n' "arm7"
+    linux-ppc64le)
+      printf '%s\n' "linux-ppc64le"
       ;;
-    aarch64|arm64)
-      printf '%s\n' "aarch64"
+    linux-riscv64)
+      # Why/为什么: 沿用 Rust 时代 riscv64gc 的历史资产名，保证升级用户下载链接不漂移。
+      # English: keep the Rust-era riscv64gc asset name so upgrade download links stay stable.
+      printf '%s\n' "linux-riscv64gc"
       ;;
-    powerpc64le)
-      printf '%s\n' "ppc64le"
+    linux-mips)
+      printf '%s\n' "linux-mips"
       ;;
-    riscv64gc)
-      printf '%s\n' "riscv64gc"
+    linux-mipsel)
+      printf '%s\n' "linux-mipsle"
       ;;
-    mipsel)
-      printf '%s\n' "mipsle"
+    linux-mips64)
+      printf '%s\n' "linux-mips64"
       ;;
-    mips)
-      printf '%s\n' "mips"
+    linux-mips64el)
+      printf '%s\n' "linux-mips64le"
       ;;
-    mips64)
-      printf '%s\n' "mips64"
+    windows-amd64)
+      printf '%s\n' "windows-x86_64"
       ;;
-    mips64el)
-      printf '%s\n' "mips64le"
+    macos-amd64)
+      printf '%s\n' "macos-x86_64"
       ;;
-    mipsisa32r6)
-      printf '%s\n' "mips"
+    macos-arm64)
+      printf '%s\n' "macos-aarch64"
       ;;
-    mipsisa64r6)
-      printf '%s\n' "mips64"
+    freebsd-amd64)
+      printf '%s\n' "freebsd-x86_64"
       ;;
-    mipsisa64r6el)
-      printf '%s\n' "mips64le"
+    freebsd-386)
+      printf '%s\n' "freebsd-x86_32"
       ;;
     *)
-      printf '%s\n' "${arch_raw}"
+      # Why/为什么: GUI 标签（linux-x86_64 / android-armv7 / ios-aarch64 等）本身就是最终后缀。
+      # English: GUI labels (linux-x86_64 / android-armv7 / ios-aarch64 ...) already are final suffixes.
+      printf '%s\n' "${label}"
       ;;
   esac
-}
-
-ikb_release_arch() {
-  local target="${1:-}"
-  local arch
-
-  # Why: keep Android ABI naming explicit as armv7 / 为什么：Android ABI 需要保留 armv7 名称，避免与 Linux arm7 混淆
-  if [[ "${target}" == armv7-linux-android* ]]; then
-    printf '%s\n' "armv7"
-    return
-  fi
-
-  arch="$(ikb_normalize_arch "${target%%-*}")"
-  printf '%s\n' "${arch}"
 }
 
 ikb_release_os() {
-  local target="${1:-}"
-
-  case "${target}" in
-    *-windows-*)
-      printf '%s\n' "windows"
-      ;;
-    *-apple-darwin)
-      printf '%s\n' "macos"
-      ;;
-    *-linux-android*)
-      printf '%s\n' "android"
-      ;;
-    *-apple-ios)
-      printf '%s\n' "ios"
-      ;;
-    *-freebsd)
-      printf '%s\n' "freebsd"
-      ;;
-    *-linux-*)
-      printf '%s\n' "linux"
-      ;;
-    *)
-      printf '%s\n' "unknown"
-      ;;
-  esac
-}
-
-ikb_release_suffix() {
-  local target="${1:-}"
-  printf '%s-%s\n' "$(ikb_release_os "${target}")" "$(ikb_release_arch "${target}")"
+  local suffix
+  suffix="$(ikb_release_suffix "${1:-}")"
+  printf '%s\n' "${suffix%%-*}"
 }
 
 ikb_cli_zip_name() {
-  local target="${1:-}"
-  printf '%s\n' "ikuai-bypass-cli-$(ikb_release_suffix "${target}").zip"
+  printf '%s\n' "ikuai-bypass-cli-$(ikb_release_suffix "${1:-}").zip"
 }
 
 ikb_gui_zip_name() {
-  local target="${1:-}"
-  if [[ "$(ikb_release_os "${target}")" == "windows" ]]; then
-    printf '%s\n' "ikuai-bypass-gui-$(ikb_release_suffix "${target}").exe.zip"
+  local suffix
+  suffix="$(ikb_release_suffix "${1:-}")"
+  if [[ "$(ikb_release_os "${1:-}")" == "windows" ]]; then
+    printf '%s\n' "ikuai-bypass-gui-${suffix}.exe.zip"
     return
   fi
-  printf '%s\n' "ikuai-bypass-gui-$(ikb_release_suffix "${target}").zip"
+  printf '%s\n' "ikuai-bypass-gui-${suffix}.zip"
 }
 
 ikb_cli_native_name() {
-  local target="${1:-}"
   local ext="${2:-}"
-  printf '%s\n' "ikuai-bypass-cli-$(ikb_release_suffix "${target}")${ext}"
+  printf '%s\n' "ikuai-bypass-cli-$(ikb_release_suffix "${1:-}")${ext}"
 }
 
 ikb_gui_native_name() {
-  local target="${1:-}"
   local ext="${2:-}"
-  printf '%s\n' "ikuai-bypass-gui-$(ikb_release_suffix "${target}")${ext}"
+  printf '%s\n' "ikuai-bypass-gui-$(ikb_release_suffix "${1:-}")${ext}"
 }
 
 ikb_luci_base() {
@@ -135,6 +101,10 @@ ikb_luci_base() {
 }
 
 ikb_ipkg_name() {
-  local target="${1:-}"
-  printf '%s\n' "ikuai-bypass-$(ikb_release_arch "${target}").ipkg"
+  local suffix
+  suffix="$(ikb_release_suffix "${1:-}")"
+  # Why/为什么: ipkg 只在 linux-amd64 / linux-arm64 上调用，去掉 linux- 前缀即架构名。
+  # English: ipkg is only built for linux-amd64 / linux-arm64; stripping the
+  # linux- prefix yields the bare arch used by the ipkg asset name.
+  printf '%s\n' "ikuai-bypass-${suffix#linux-}.ipkg"
 }

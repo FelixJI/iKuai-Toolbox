@@ -9,15 +9,8 @@
         "frontendDist": "../../frontends/app/dist"
     },
     "app": {
-        "withGlobalTauri": true,
-        "windows": [
-            {
-                "title": "iKuai Bypass",
-                "width": 430,
-                "height": 880,
-                "resizable": true
-            }
-        ],
+        "withGlobalTauri": false,
+        "windows": [],
         "security": {
             "csp": null,
             "capabilities": ["default"]
@@ -26,6 +19,7 @@
     "bundle": {
         "active": true,
         "targets": ["nsis", "msi", "dmg"],
+        "externalBin": ["binaries/ikuai-bypass-go"],
         "icon": [
             "icons/icon.png",
             "icons/32x32.png",

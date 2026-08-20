@@ -9,7 +9,7 @@ const authPass = process.env.IKB_WEBUI_PASS;
 const outputDir = process.env.IKB_PLAYWRIGHT_OUTPUT_DIR
   || (process.env.IKB_WEBUI_ARTIFACT_DIR
     ? path.join(process.env.IKB_WEBUI_ARTIFACT_DIR, 'playwright')
-    : path.resolve(process.cwd(), '../../apps/integration-tests/.artifacts/frontends-app-playwright'));
+    : path.resolve(process.cwd(), '../../apps/integration-tests-go/.artifacts/frontends-app-playwright'));
 
 export default defineConfig({
   testDir: './tests/e2e',

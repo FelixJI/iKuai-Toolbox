@@ -10,6 +10,7 @@ on:
       - "docs/**"
       - "**/*.md"
       - "golang_archive/**"
+      - "rust_archive/**"
       - ".github/workflows/test-install-script.yml"
       - ".github/scripts/test-install-script.sh"
   pull_request:
@@ -18,6 +19,7 @@ on:
       - "docs/**"
       - "**/*.md"
       - "golang_archive/**"
+      - "rust_archive/**"
       - ".github/workflows/test-install-script.yml"
       - ".github/scripts/test-install-script.sh"
   workflow_dispatch:
@@ -54,59 +56,11 @@ jobs:
           name: frontend-dist
           path: frontends/app/dist
 
-  cli-core-unit:
-    name: CLI Core Unit
-    needs: build-frontend
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      CARGO_TERM_COLOR: always
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: frontend-dist
-          path: frontends/app/dist
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            . -> target
-          cache-on-failure: true
-          shared-key: integration-smoke
-
-      - name: Build CLI binary
-        shell: bash
-        run: cargo build --locked -p ikb-cli --bin ikb-cli
-
-      - name: Run core unit tests
-        shell: bash
-        run: cargo test --locked -p ikb-core
-
-  cli-smoke:
-    name: CLI Smoke (${{ matrix.test_name }})
+  go-tests:
+    name: Go Unit & Smoke
     needs: build-frontend
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        test_name:
-          - simulator_api_surface_smoke
-          - rule_sync_update_in_place_smoke
-          - safe_before_smoke
-          - clean_mode_smoke
-          - clean_all_smoke
-          - export_stream_domain_smoke
-          - cli_modes_smoke
-    env:
-      CARGO_TERM_COLOR: always
-      IKB_TEST_BACKEND: simulator
-      IKB_TEST_FIXTURE_BIND_HOST: 127.0.0.1
-      IKB_TEST_ARTIFACT_ROOT: ${{ github.workspace }}/apps/integration-tests/.artifacts
     steps:
       - uses: actions/checkout@v7
 
@@ -115,30 +69,20 @@ jobs:
           name: frontend-dist
           path: frontends/app/dist
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-go@v7
         with:
-          workspaces: |
-            . -> target
-          cache-on-failure: true
-          shared-key: integration-smoke
+          go-version-file: go.mod
 
-      - name: Build CLI binary
-        shell: bash
-        run: cargo build --locked -p ikb-cli --bin ikb-cli
+      # Why/为什么: go vet 加全仓测试一次跑齐；apps/integration-tests-go 的模拟器
+      # smoke 包含在 ./... 内（harness 内部自行 go build 被测二进制）。
+      # English: go vet plus the full test tree in one pass; the simulator
+      # smokes from apps/integration-tests-go are part of ./... (the harness
+      # builds the binary under test itself).
+      - name: Go vet
+        run: go vet ./...
 
-      - name: Run smoke case
-        shell: bash
-        run: IKB_SMOKE_SKIP_SETUP=1 bash apps/integration-tests/run-smoke-test.sh "${{ matrix.test_name }}"
-
-      - name: Upload smoke artifacts
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: integration-artifacts-${{ matrix.test_name }}
-          path: apps/integration-tests/.artifacts/
-          if-no-files-found: ignore
+      - name: Go unit and smoke tests
+        run: go test ./... -count=1
 
   frontend-tests:
     name: Frontend Tests
@@ -168,6 +112,7 @@ jobs:
 
   tauri-tests:
     name: Tauri Backend Tests
+    needs: build-frontend
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -175,12 +120,29 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Why/为什么: cargo test 会执行 tauri-build，其资源校验要求 externalBin 声明的
+      # Go sidecar 存在；sidecar 由 go build 产出，而根包 go:embed 又要求前端 dist。
+      # English: cargo test runs tauri-build whose resource check requires the
+      # externalBin Go sidecar; the sidecar comes from go build, and the root
+      # go:embed in turn requires the frontend dist.
+      - uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: frontends/app/dist
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
         with:
+          # Why/为什么: 根 workspace 已归档到 rust_archive/，apps/gui 是独立 crate。
+          # English: the root workspace is archived under rust_archive/; apps/gui
+          # is a standalone crate now.
           workspaces: |
-            . -> target
+            apps/gui -> target
           cache-on-failure: true
           shared-key: integration-smoke
 
@@ -199,6 +161,20 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev
 
+      - name: Build Go sidecar for tauri-build resource check
+        shell: bash
+        run: |
+          set -euo pipefail
+          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" \
+            -o apps/gui/binaries/ikuai-bypass-go-x86_64-unknown-linux-gnu \
+            ./cmd/ikuai-bypass
+
+      # Why/为什么: apps/gui 已解耦为独立 crate（根 workspace 归档于 rust_archive/），
+      # 测试直接在其目录内运行，`--locked` 依赖仓库内 apps/gui/Cargo.lock。
+      # English: apps/gui is a standalone crate (root workspace archived under
+      # rust_archive/); run tests in place, `--locked` relies on the committed
+      # apps/gui/Cargo.lock.
       - name: Tauri backend command tests
         shell: bash
-        run: cargo test --locked -p ikb-app --test command_surface -- --nocapture
+        working-directory: apps/gui
+        run: cargo test --locked --test command_surface -- --nocapture
