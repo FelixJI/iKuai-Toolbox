@@ -28,13 +28,18 @@ func (s *Server) handleLogsStream(w http.ResponseWriter, r *http.Request) {
 		writeText(w, http.StatusInternalServerError, "Streaming unsupported")
 		return
 	}
+	// 先订阅再写响应头：客户端收到头即可保证订阅已生效，消除
+	// "写头与订阅之间广播丢失" 的窗口（SSE 无回放）。
+	// Subscribe before writing headers: receiving the headers guarantees
+	// the subscription is live, closing the header-to-subscribe gap in
+	// which a broadcast would be lost (SSE has no replay).
+	ch, cancel := s.rt.SubscribeLogs()
+	defer cancel()
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
-
-	ch, cancel := s.rt.SubscribeLogs()
-	defer cancel()
 
 	keepAlive := time.NewTicker(sseKeepAliveInterval)
 	defer keepAlive.Stop()
