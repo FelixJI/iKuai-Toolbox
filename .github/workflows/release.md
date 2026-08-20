@@ -8,6 +8,19 @@
 - 不包含 `schedule`，不会每日自动构建
 - 历史上用于转发 `cargo release --execute` release commit 的 `trigger-release.yml` 已随 Rust workspace 归档（`rust_archive/`）一并移除；Go 主线发布统一走 tag push 或手动 `workflow_dispatch`
 
+### Release PR 自动化（推荐发布路径）
+
+版本号由 Release PR 流程自动生成与同步，不手工改版本文件：
+
+- `release-prepare.yml` 手动 `workflow_dispatch`，输入 `bump`（patch/minor/major）与可选 `prerelease_suffix`（如 `rc.1`，留空为正式版）
+- 核心脚本 `.github/scripts/release-prepare.py`：
+  - 校验 `internal/app/diagnostics.go` 的 `CoreVersion`、`apps/gui/Cargo.toml`、`apps/gui/Cargo.lock` 三处版本一致（基版本归一化比较，预发布后缀忽略）
+  - 基线取代码版本与最高 `ikuai-bypass-v*` tag 的最大值，按 bump 级别计算下一版本
+  - 自动改写三处版本并提交 `.release/plan.json` 到 `release/auto` 分支，创建或刷新 Release PR；已存在不同 bump 的 open PR 时拒绝执行
+- Release PR 合并进 main 后，`release-tag.yml` 从 merge commit 读取 `.release/plan.json`，幂等打出 `ikuai-bypass-vX.Y.Z` tag（远程已存在且指向相同 SHA 则跳过，指向不同 SHA 则失败），并以 `trigger_mode=tag`、`build_mode=full`、`build_target=cli+gui` 显式转发 `release.yml`
+- GITHUB_TOKEN push 的 tag 不产生 push 事件（平台防递归），因此 `release-tag.yml` 必须再用 `workflow_dispatch` 显式转发
+- 直接手工打 `ikuai-bypass-v*` tag 推送仍然有效，但会触发版本一致性断言
+
 ### Tag 触发
 
 - `ikuai-bypass-v*` tag push 会直接触发 `release.yml`
@@ -56,6 +69,8 @@
 - `dev`
 - `nightly`
 - `test`
+- `manual`
+- `demo`
 
 规则如下：
 
@@ -343,11 +358,20 @@ GitHub Actions 内部 artifact 名仅用于 job 间传递：
 - 自动生成 Release Notes
 - 根据版本名决定是否标记为 `prerelease`
 
+### 版本一致性断言
+
+- tag push 触发时，`resolve-matrix` 会执行 `release-prepare.py --verify-tag` 校验 tag 基版本与 `CoreVersion` / `Cargo.toml` / `Cargo.lock` 归一化后的基版本一致，不一致直接失败
+- 手动 `workflow_dispatch` 构建不做该校验
+
 ## 10. 关键实现文件
 
 - `.github/workflows/release.yml`
+- `.github/workflows/release-prepare.yml`
+- `.github/workflows/release-tag.yml`
+- `.github/scripts/release-prepare.py`
 - `.github/build_matrix.jsonc`
 - `.github/scripts/arch-helpers.sh`
+- `.github/scripts/release-helpers.sh`
 - `packaging/docker/prepare-container-binaries.sh`
 - `packaging/ikuai-ipkg/build-ipkg.sh`
 - `packaging/ikuai-ipkg/render-manifest.sh`
@@ -358,8 +382,9 @@ GitHub Actions 内部 artifact 名仅用于 job 间传递：
 
 后续如果调整以下内容，必须同步更新本文档：
 
-- 触发方式
+- 触发方式（含 Release PR 自动化流程）
 - prerelease 判定关键字
+- 版本一致性断言规则
 - Docker `latest` 规则
 - stable / nightly / BSD / GUI 构建矩阵
 - `full` 模式下的 nightly 构建逻辑

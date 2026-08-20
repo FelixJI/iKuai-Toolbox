@@ -822,8 +822,8 @@ git tag rust-final  # 冻结点标记，方便回溯
 
 ```bash
 git checkout main && git merge --no-ff go-migration
-# 打 tag（按 release.yml 约定：含 "rc" 等 prerelease 标记）
-git tag v5.0.0-rc.1 && git push origin main --tags
+# 打 tag（release.yml 仅监听 ikuai-bypass-v* 前缀；含 "rc" 等 prerelease 标记）
+git tag ikuai-bypass-v5.0.0-rc.1 && git push origin main ikuai-bypass-v5.0.0-rc.1
 # CI 自动构建发布，核对 release 资产齐全（各架构二进制 + ipk + docker）
 ```
 

@@ -1,0 +1,57 @@
+name: Release Prepare
+
+# Why/为什么: 版本号同步与 Release PR 维护全自动（vibetable 同款 Release PR 模式）：
+# 手动选 bump 级别，脚本自动算下一版本、改写 CoreVersion/Cargo.toml/Cargo.lock、
+# 开 release/auto 分支的 Release PR；人工只剩“合并 PR”。
+# English: fully automated version sync and Release PR maintenance; merging the
+# PR is the only manual step left.
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version part to bump"
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      prerelease_suffix:
+        description: "Prerelease suffix, e.g. rc.1 (empty = stable release)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-prepare
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Create or refresh release PR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: true
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Prepare release PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python .github/scripts/release-prepare.py \
+            --bump "${{ inputs.bump }}" \
+            --suffix "${{ inputs.prerelease_suffix }}"

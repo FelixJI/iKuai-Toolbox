@@ -10,7 +10,7 @@ is_prerelease_tag() {
 
   # Why/为什么: 这些关键字任意出现即视为 pre-release。
   # English: Treat any tag containing these keywords as prerelease.
-  if printf '%s' "${lc}" | grep -Eq '(manuall|manual|test|rc|demo|beta|alpha|pre|preview|dev|nightly)'; then
+  if printf '%s' "${lc}" | grep -Eq '(manual|test|rc|demo|beta|alpha|pre|preview|dev|nightly)'; then
     return 0
   fi
 

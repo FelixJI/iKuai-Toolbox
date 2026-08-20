@@ -97,8 +97,11 @@ iKuai-Toolbox/
 
 ## CI 约束
 - `.github/workflows/release.yml` 只允许 `tag push` 和 `workflow_dispatch` 触发，禁止恢复每日定时构建。
+- 发布统一走 Release PR 流程（参考 vibetable 模式）：`release-prepare.yml` 手动选 bump 级别后由 `.github/scripts/release-prepare.py` 自动计算下一版本、同步改写 `internal/app/diagnostics.go` 的 `CoreVersion` 与 `apps/gui/Cargo.toml`、`apps/gui/Cargo.lock`，并维护 `release/auto` 分支的 Release PR；禁止为发版手工编辑版本文件。
+- Release PR 合并后由 `release-tag.yml` 自动打 `ikuai-bypass-vX.Y.Z` tag 并以 `trigger_mode=tag`、`build_mode=full` 转发 `release.yml`；GITHUB_TOKEN push 的 tag 不产生 push 事件，必须显式 `workflow_dispatch` 转发。
+- tag push 时 `resolve-matrix` 会校验 tag 基版本与三处版本常量一致（`release-prepare.py --verify-tag`），不一致直接失败。
 - 手动执行时 `publish_release` 与 `push_docker` 默认勾选；未填写 `release_tag` 但勾选发布时必须自动生成 `manual-release-年月日时分秒` 继续发布；手动执行发布一律标记为 prerelease；选择 `full` 时必须自动包含 nightly MIPS 架构。
-- Tag push 仅在 tag 名包含 `test`、`rc`、`alpha`、`beta`、`pre`、`preview`、`dev`、`nightly` 时发布为 prerelease，否则发布为正式版并推送 Docker `latest`。
+- Tag push 仅在 tag 名包含 `manual`、`demo`、`test`、`rc`、`alpha`、`beta`、`pre`、`preview`、`dev`、`nightly` 时发布为 prerelease，否则发布为正式版并推送 Docker `latest`。
 - 发布 workflow 注意事项：
   - 发布 workflow 运行期间不要在 main 上 push 新 commit；tag 指向的 commit 不再是默认分支 tip 时，GitHub 平台会拒绝 GITHUB_TOKEN 携带该 commit 作为 target_commitish 创建 release（403），该限制要求 PAT 级权限。
   - Publish Release 步骤使用 `gh release create` 而非 softprops/action-gh-release：tag 已存在时只关联 tag、不传 target_commitish，天然规避上述 403。

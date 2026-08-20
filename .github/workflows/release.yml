@@ -59,7 +59,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  CARGO_TERM_COLOR: always
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   DOCKER_IMAGE: ${{ vars.DOCKERHUB_IMAGE || 'felixji/ikuai-toolbox' }}
 
@@ -206,6 +205,15 @@ jobs:
           if [[ "${push_docker}" == "true" && "${docker_creds_available}" != "true" ]]; then
             echo "Docker credentials are required when push_docker=true" >&2
             exit 1
+          fi
+
+          # Why/为什么: tag 发布强校验版本三处一致（CoreVersion / Cargo.toml / Cargo.lock），
+          # 防止绕过 Release PR 流程手打 tag 造成版本漂移；手动 dispatch 构建不校验。
+          # English: enforce version-source consistency on tag pushes so manual
+          # tags cannot drift from the code version literals; manual dispatch
+          # builds skip the check.
+          if [[ "${EVENT_NAME}" == "push" ]]; then
+            python3 .github/scripts/release-prepare.py --verify-tag "${tag_name}"
           fi
 
           {

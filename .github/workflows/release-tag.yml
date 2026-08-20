@@ -1,0 +1,79 @@
+name: Release Tag
+
+# Why/为什么: Release PR（release/auto 分支）合并进 main 后，从 merge commit 读取
+# .release/plan.json，幂等打出 canonical tag 并显式转发 Release go workflow。
+# GITHUB_TOKEN push 的 tag 不产生 push 事件（平台防递归），因此必须再用
+# workflow_dispatch 显式转发一次。
+# English: after the Release PR merges, read .release/plan.json from the merge
+# commit, idempotently push the canonical tag and forward Release go via an
+# explicit workflow_dispatch (GITHUB_TOKEN tag pushes do not emit push events).
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: release-tag-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Tag merged release commit
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.ref == 'release/auto'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: true
+
+      - name: Push release tag and forward Release go
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+
+          if [ ! -f .release/plan.json ]; then
+            echo "merge commit has no .release/plan.json; nothing to tag" >&2
+            exit 1
+          fi
+
+          tag="$(python3 -c 'import json;print(json.load(open(".release/plan.json"))["tag"])')"
+          if [[ ! "${tag}" =~ ^ikuai-bypass-v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "unexpected tag in plan: ${tag}" >&2
+            exit 1
+          fi
+
+          remote_sha="$(git ls-remote --refs --tags origin "refs/tags/${tag}" | cut -f1)"
+          if [ -n "${remote_sha}" ]; then
+            if [ "${remote_sha}" != "${MERGE_SHA}" ]; then
+              echo "tag ${tag} exists at ${remote_sha}, refusing to retag ${MERGE_SHA}" >&2
+              exit 1
+            fi
+            echo "tag ${tag} already points at the merge commit; skip push"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "${tag}" -m "release ${tag}" "${MERGE_SHA}"
+            git push origin "refs/tags/${tag}"
+          fi
+
+          gh workflow run release.yml \
+            --repo "${{ github.repository }}" \
+            --ref "${tag}" \
+            -f release_tag="${tag}" \
+            -f trigger_mode=tag \
+            -f build_mode=full \
+            -f build_target=cli+gui \
+            -f publish_release=true \
+            -f push_docker=true
